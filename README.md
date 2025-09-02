@@ -56,7 +56,6 @@ Note: If you plan to load the tool inside AutoCAD, compile as a Class Library (D
 - Fork the repository, add changes on a topic branch and open a Pull Request with a clear description and testing notes.
 
 ## License
-- No license file is included. Add a LICENSE file to make terms explicit before publishing.
-
+- MIT
 ## Disclaimer
 This tool automates changes in AutoCAD drawings. Always back up drawings before running batch operations.
