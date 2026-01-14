@@ -1,11 +1,6 @@
 ﻿// (C) Copyright 2025 by  
 //
-using Autodesk.AutoCAD.ApplicationServices;
-using Autodesk.AutoCAD.DatabaseServices;
-using Autodesk.AutoCAD.EditorInput;
-using Autodesk.AutoCAD.Geometry;
 using Autodesk.AutoCAD.Runtime;
-using System;
 
 // This line is not mandatory, but improves loading performances
 [assembly: ExtensionApplication(typeof(AutoCADLispTool.MyPlugin))]

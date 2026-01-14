@@ -1,55 +1,37 @@
 ﻿using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
+using AutoCADLispTool.Models;
+using AutoCADLispTool.Services;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using AcadApp = Autodesk.AutoCAD.ApplicationServices.Application;
 
 namespace AutoCADLispTool
 {
-    public partial class MainFom : Form
+    public partial class MainForm : Form
     {
-        // Store the full path of the selected LISP file for future use
-        private string selectedLispFilePath = string.Empty;
+        private readonly List<string> _drawingPaths = new List<string>();
+        private readonly List<DrawingResult> _results = new List<DrawingResult>();
+        private readonly ToolTip _toolTip = new ToolTip();
         
-        // Store the full paths of selected drawing files for command execution
-        private List<string> selectedDrawingPaths = new List<string>();
+        private CancellationTokenSource _cancellationTokenSource;
+        private BufferedLogger _logger;
+        private ProcessingConfig _config;
+        private string _selectedLispPath = string.Empty;
+        private int _executionCounter = 0;
 
-        // Store drawing results for display
-        private List<DrawingResult> drawingResults = new List<DrawingResult>();
-
-        // Log file path for current session
-        private string currentLogFilePath = string.Empty;
-
-        // Counter for incremental logging
-        private int executionCounter = 0;
-
-        // Add a cancellation token source for stopping processing
-        private System.Threading.CancellationTokenSource cancellationTokenSource;
-
-        public MainFom()
+        public MainForm()
         {
             InitializeComponent();
             SetupListView();
-        }
-
-        // Class to store drawing processing results
-        private class DrawingResult
-        {
-            public string DrawingName { get; set; }
-            public string FirstWord { get; set; }
-            public string RestOfMessage { get; set; }
-            public bool IsProcessed { get; set; }
-            public bool HasError { get; set; }
+            _config = new ProcessingConfig();
         }
 
         // Setup ListView with 3 columns
@@ -68,12 +50,10 @@ namespace AutoCADLispTool
 
         private void btnLoad_Click(object sender, EventArgs e)
         {
-            // Clear previous LISP file and command when loading new file
             txtLspFile.Text = string.Empty;
             txtCommand.Text = string.Empty;
-            selectedLispFilePath = string.Empty;
+            _selectedLispPath = string.Empty;
 
-            // Create and configure OpenFileDialog for .lsp files
             using (OpenFileDialog openFileDialog = new OpenFileDialog())
             {
                 openFileDialog.Filter = "LISP Files (*.lsp)|*.lsp|All Files (*.*)|*.*";
@@ -83,20 +63,13 @@ namespace AutoCADLispTool
                 openFileDialog.CheckPathExists = true;
                 openFileDialog.Multiselect = false;
 
-                // Show the dialog and check if user selected a file
                 if (openFileDialog.ShowDialog() == DialogResult.OK)
                 {
                     try
                     {
-                        // Store the full path for future use
-                        selectedLispFilePath = openFileDialog.FileName;
-                        
-                        // Display only the filename with extension in the textbox
-                        txtLspFile.Text = Path.GetFileName(selectedLispFilePath);
-                        
-                        // Optional: Set tooltip to show full path
-                        ToolTip toolTip = new ToolTip();
-                        toolTip.SetToolTip(txtLspFile, selectedLispFilePath);
+                        _selectedLispPath = openFileDialog.FileName;
+                        txtLspFile.Text = Path.GetFileName(_selectedLispPath);
+                        _toolTip.SetToolTip(txtLspFile, _selectedLispPath);
                     }
                     catch (Exception ex)
                     {
@@ -107,20 +80,17 @@ namespace AutoCADLispTool
             }
         }
 
-        // Public property to access the selected file path from other parts of the application
         public string SelectedLispFilePath
         {
-            get { return selectedLispFilePath; }
+            get { return _selectedLispPath; }
         }
 
         private void btnDwgs_Click(object sender, EventArgs e)
         {
-            // Clear previous drawing list and related variables when loading new drawings
             lstDwgList.Items.Clear();
-            selectedDrawingPaths.Clear();
-            drawingResults.Clear();
+            _drawingPaths.Clear();
+            _results.Clear();
 
-            // Create and configure OpenFileDialog for .dwg files with multiselect enabled
             using (OpenFileDialog openFileDialog = new OpenFileDialog())
             {
                 openFileDialog.Filter = "AutoCAD Drawing Files (*.dwg)|*.dwg|All Files (*.*)|*.*";
@@ -128,34 +98,31 @@ namespace AutoCADLispTool
                 openFileDialog.Title = "Select Drawing Files";
                 openFileDialog.CheckFileExists = true;
                 openFileDialog.CheckPathExists = true;
-                openFileDialog.Multiselect = true; // Enable multiple file selection
+                openFileDialog.Multiselect = true;
 
-                // Show the dialog and check if user selected files
                 if (openFileDialog.ShowDialog() == DialogResult.OK)
                 {
                     try
                     {
-                        // Add each selected file to the list
+                        lstDwgList.BeginUpdate();
                         foreach (string fileName in openFileDialog.FileNames)
                         {
-                            // Store the full path for command execution
-                            selectedDrawingPaths.Add(fileName);
+                            _drawingPaths.Add(fileName);
                             
-                            // Create a new drawing result entry
                             var result = new DrawingResult
                             {
                                 DrawingName = Path.GetFileName(fileName),
-                                FirstWord = "",
-                                RestOfMessage = "",
+                                DrawingPath = fileName,
+                                ResultStatus = "",
+                                ResultMessage = "",
                                 IsProcessed = false,
                                 HasError = false
                             };
-                            drawingResults.Add(result);
+                            _results.Add(result);
                             
-                            // Add to ListView
                             var item = new ListViewItem(result.DrawingName);
-                            item.SubItems.Add(result.FirstWord);
-                            item.SubItems.Add(result.RestOfMessage);
+                            item.SubItems.Add(result.ResultStatus);
+                            item.SubItems.Add(result.ResultMessage);
                             lstDwgList.Items.Add(item);
                         }
                     }
@@ -164,142 +131,132 @@ namespace AutoCADLispTool
                         MessageBox.Show($"Error loading drawing files: {ex.Message}", "Error", 
                                       MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
+                    finally
+                    {
+                        lstDwgList.EndUpdate();
+                    }
                 }
             }
         }
 
-        // Public property to access the selected drawing file paths from other parts of the application
         public List<string> SelectedDrawingPaths
         {
-            get { return new List<string>(selectedDrawingPaths); } // Return a copy to prevent external modification
+            get { return new List<string>(_drawingPaths); }
         }
 
-        // Method to clear the drawing list
         public void ClearDrawingList()
         {
             lstDwgList.Items.Clear();
-            selectedDrawingPaths.Clear();
-            drawingResults.Clear();
+            _drawingPaths.Clear();
+            _results.Clear();
         }
 
-        // Method to remove selected drawing from the list
         public void RemoveSelectedDrawing()
         {
             if (lstDwgList.SelectedIndices.Count > 0)
             {
                 int selectedIndex = lstDwgList.SelectedIndices[0];
                 lstDwgList.Items.RemoveAt(selectedIndex);
-                selectedDrawingPaths.RemoveAt(selectedIndex);
-                drawingResults.RemoveAt(selectedIndex);
+                _drawingPaths.RemoveAt(selectedIndex);
+                _results.RemoveAt(selectedIndex);
             }
         }
 
         private async void btnProcess_Click(object sender, EventArgs e)
         {
-            if (selectedDrawingPaths.Count == 0)
+            if (_drawingPaths.Count == 0)
             {
                 MessageBox.Show("Please select drawing files first.", "No Drawings Selected", 
                               MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            // Check if LISP file is selected when command is provided
-            if (!string.IsNullOrWhiteSpace(txtCommand.Text) && string.IsNullOrWhiteSpace(selectedLispFilePath))
+            if (!string.IsNullOrWhiteSpace(txtCommand.Text) && string.IsNullOrWhiteSpace(_selectedLispPath))
             {
                 MessageBox.Show("Please select a LISP file first when using commands.", "LISP File Required", 
                               MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            // Initialize log file for this processing session
-            currentLogFilePath = CreateLogFilePath();
-            executionCounter = 0; // Reset counter for new session
+            string logFilePath = CreateLogFilePath();
+            _executionCounter = 0;
             
-            WriteToLog("=== LISP Tool Processing Session Started ===");
-            WriteToLog($"LISP File: {(string.IsNullOrEmpty(selectedLispFilePath) ? "None" : Path.GetFileName(selectedLispFilePath))}");
-            WriteToLog($"Command: {(string.IsNullOrEmpty(txtCommand.Text) ? "None" : txtCommand.Text)}");
-            WriteToLog($"Total Drawings: {selectedDrawingPaths.Count}");
-            WriteToLog("================================================");
+            _logger?.Dispose();
+            _logger = new BufferedLogger(logFilePath);
             
-            // Initialize progress controls
-            SetControlsEnabled(false); // Disable controls during processing
+            _logger.Log("=== LISP Tool Processing Session Started ===");
+            _logger.Log($"LISP File: {(string.IsNullOrEmpty(_selectedLispPath) ? "None" : Path.GetFileName(_selectedLispPath))}");
+            _logger.Log($"Command: {(string.IsNullOrEmpty(txtCommand.Text) ? "None" : txtCommand.Text)}");
+            _logger.Log($"Total Drawings: {_drawingPaths.Count}");
+            _logger.Log("================================================");
+            
+            SetControlsEnabled(false);
             prgDrawingProgress.Minimum = 0;
-            prgDrawingProgress.Maximum = selectedDrawingPaths.Count;
+            prgDrawingProgress.Maximum = _drawingPaths.Count;
             prgDrawingProgress.Value = 0;
             lblProgress.Text = "0%";
             
-            // Create a copy of the paths to prevent modification during processing
-            var pathsToProcess = new List<string>(selectedDrawingPaths);
+            _cancellationTokenSource = new CancellationTokenSource();
+            var token = _cancellationTokenSource.Token;
+            var pathsToProcess = new List<string>(_drawingPaths);
             
             try
             {
-                // Process each drawing file
                 for (int i = 0; i < pathsToProcess.Count; i++)
                 {
+                    token.ThrowIfCancellationRequested();
+                    
                     string dwgPath = pathsToProcess[i];
                     string commandOutput = "Drawing processed successfully";
                     
-                    // Update progress display using thread-safe method
                     await UpdateProgressAsync(i + 1, pathsToProcess.Count, Path.GetFileName(dwgPath));
                     
                     try
                     {
-                        // Open the drawing using AutoCAD DocumentManager
-                        var docMgr = Autodesk.AutoCAD.ApplicationServices.Application.DocumentManager;
+                        var docMgr = AcadApp.DocumentManager;
                         Document openDoc = null;
                         
                         try
                         {
-                            // Try to open the document with better error handling
-                            WriteToLog($"Attempting to open: {Path.GetFileName(dwgPath)}");
+                            _logger.Log($"Attempting to open: {Path.GetFileName(dwgPath)}");
                             openDoc = docMgr.Open(dwgPath, false);
                             
                             if (openDoc != null)
                             {
-                                WriteToLog($"Successfully opened: {Path.GetFileName(dwgPath)}");
+                                _logger.Log($"Successfully opened: {Path.GetFileName(dwgPath)}");
                                 
-                                // Make the document current
                                 docMgr.MdiActiveDocument = openDoc;
-                                
-                                // Allow time for document to become active
-                                await Task.Delay(100);
+                                await Task.Delay(_config.DocumentActivationDelayMs, token);
                                 
                                 if (docMgr.MdiActiveDocument != openDoc)
                                 {
                                     commandOutput = "Failed to make document current";
-                                    WriteToLog($"Failed to make document current: {Path.GetFileName(dwgPath)}");
+                                    _logger.Log($"Failed to make document current: {Path.GetFileName(dwgPath)}");
                                     continue;
                                 }
 
                                 commandOutput = "Document opened successfully";
 
-                                // Execute commands using document lock
                                 using (DocumentLock docLock = openDoc.LockDocument())
                                 {
-                                    WriteToLog($"Document locked for processing: {Path.GetFileName(dwgPath)}");
+                                    _logger.Log($"Document locked for processing: {Path.GetFileName(dwgPath)}");
                                     
-                                    // Alternative approach: Use Editor for better command execution
                                     Editor ed = openDoc.Editor;
-                                    // Load LISP file first if both LISP file and command are specified
-                                    if (!string.IsNullOrEmpty(selectedLispFilePath) && !string.IsNullOrEmpty(txtCommand.Text))
+                                    if (!string.IsNullOrEmpty(_selectedLispPath) && !string.IsNullOrEmpty(txtCommand.Text))
                                     {
                                         try
                                         {
-                                            // Load the LISP file
-                                            string loadCommand = $"(load \"{selectedLispFilePath.Replace("\\", "\\\\")}\")";
+                                            string loadCommand = $"(load \"{_selectedLispPath.Replace("\\", "\\\\")}\")";
                                             openDoc.SendStringToExecute(loadCommand + "\n", true, false, false);
                                           
-                                            // Wait for LISP file to load
-                                            await Task.Delay(250);
+                                            await Task.Delay(_config.LispLoadDelayMs, token);
 
-                                            // Execute the LISP command directly
                                             string lispFunction = txtCommand.Text;
                                             string resultVarName = "resultVar";
                                             string commandToExecute = $"(setq {resultVarName} {lispFunction})";
                                             openDoc.SendStringToExecute(commandToExecute + "\n", true, false, true);
                                             
-                                            // Wait for command to complete
-                                            await Task.Delay(250);
+                                            await Task.Delay(_config.CommandExecutionDelayMs, token);
 
                                             object result = openDoc.GetLispSymbol(resultVarName);
 
@@ -313,84 +270,71 @@ namespace AutoCADLispTool
                                             }
 
                                             ed.WriteMessage($"\n{commandOutput}");
-                                            WriteToLog($"LISP command executed successfully for: {Path.GetFileName(dwgPath)}");
+                                            _logger.Log($"LISP command executed successfully for: {Path.GetFileName(dwgPath)}");
                                         }
                                         catch (Exception cmdEx)
                                         {
                                             commandOutput = $"Command execution error: {cmdEx.Message}";
-                                            WriteToLog($"Command execution error for {Path.GetFileName(dwgPath)}: {cmdEx.Message}");
+                                            _logger.Log($"Command execution error for {Path.GetFileName(dwgPath)}: {cmdEx.Message}");
                                         }
                                     }
                                     else if (!string.IsNullOrEmpty(txtCommand.Text))
                                     {
                                         try
                                         {
-                                            // Execute command only (no LISP file)
                                             openDoc.SendStringToExecute(txtCommand.Text + "\n", true, false, false);
-                                            
-                                            // Wait for command to complete
-                                            await Task.Delay(250);
+                                            await Task.Delay(_config.CommandExecutionDelayMs, token);
 
                                             commandOutput = $"LISP executed";
-                                            WriteToLog($"Command executed successfully for: {Path.GetFileName(dwgPath)}");
+                                            _logger.Log($"Command executed successfully for: {Path.GetFileName(dwgPath)}");
                                         }
                                         catch (Exception cmdEx)
                                         {
                                             commandOutput = $"Command execution error: {cmdEx.Message}";
-                                            WriteToLog($"Command execution error for {Path.GetFileName(dwgPath)}: {cmdEx.Message}");
+                                            _logger.Log($"Command execution error for {Path.GetFileName(dwgPath)}: {cmdEx.Message}");
                                         }
                                     }
                                     
-                                    // Save the document within the lock using QSAVE command
                                     try
                                     {
-                                        // Check if file is read-only and remove read-only attribute if needed
                                         FileInfo fileInfo = new FileInfo(dwgPath);
                                         if (fileInfo.IsReadOnly)
                                         {
                                             fileInfo.IsReadOnly = false;
-                                            WriteToLog($"Removed read-only attribute from: {Path.GetFileName(dwgPath)}");
+                                            _logger.Log($"Removed read-only attribute from: {Path.GetFileName(dwgPath)}");
                                         }
                                         
-                                        // Use QSAVE command to save the drawing (AutoCAD's native save)
                                         openDoc.SendStringToExecute("QSAVE\n", true, false, false);
-                                        
-                                        // Wait for save operation to complete
-                                        await Task.Delay(500);
-                                        WriteToLog($"Document saved successfully: {Path.GetFileName(dwgPath)}");
+                                        await Task.Delay(_config.SaveDelayMs, token);
+                                        _logger.Log($"Document saved successfully: {Path.GetFileName(dwgPath)}");
                                     }
                                     catch (Exception saveEx)
                                     {
-                                        // Don't throw - log the error and continue with next file
                                         commandOutput = $"Save failed: {saveEx.Message}";
-                                        WriteToLog($"QSAVE failed for {Path.GetFileName(dwgPath)}: {saveEx.Message}");
+                                        _logger.Log($"QSAVE failed for {Path.GetFileName(dwgPath)}: {saveEx.Message}");
                                     }
-                                } // DocumentLock disposed here
+                                }
                                 
-                                WriteToLog($"Document lock released for: {Path.GetFileName(dwgPath)}");
+                                _logger.Log($"Document lock released for: {Path.GetFileName(dwgPath)}");
                                 
-                                // Only close the document if chkClose is checked
                                 if (chkClose.Checked)
                                 {
                                     try
                                     {
-                                        // Use CloseAndSave() to close and save the drawing
-                                        openDoc.CloseAndSave(dwgPath);
-                                        WriteToLog($"Document closed and saved: {Path.GetFileName(dwgPath)}");
+                                        openDoc.CloseAndDiscard();
+                                        _logger.Log($"Document closed: {Path.GetFileName(dwgPath)}");
                                     }
                                     catch (Exception closeEx)
                                     {
-                                        // Log the close exception but continue
                                         commandOutput += $" (Close warning: {closeEx.Message})";
-                                        WriteToLog($"Close warning for {Path.GetFileName(dwgPath)}: {closeEx.Message}");
+                                        _logger.Log($"Close warning for {Path.GetFileName(dwgPath)}: {closeEx.Message}");
                                     }
                                 }
                                 else
                                 {
-                                    WriteToLog($"Document left open: {Path.GetFileName(dwgPath)}");
+                                    _logger.Log($"Document left open: {Path.GetFileName(dwgPath)}");
                                 }
                                 
-                                // Parse command output
                                 string firstWord = "";
                                 string restOfMessage = "";
                                 
@@ -407,110 +351,92 @@ namespace AutoCADLispTool
                                     }
                                 }
                                 
-                                // Update the drawing result - ensure we don't go out of bounds
-                                if (i < drawingResults.Count)
+                                if (i < _results.Count)
                                 {
-                                    drawingResults[i].FirstWord = firstWord;
-                                    drawingResults[i].RestOfMessage = restOfMessage;
-                                    drawingResults[i].IsProcessed = true;
+                                    _results[i].ResultStatus = firstWord;
+                                    _results[i].ResultMessage = restOfMessage;
+                                    _results[i].IsProcessed = true;
                                 }
                                 
-                                // Update ListView using thread-safe method
                                 await UpdateListViewItemAsync(i, firstWord, restOfMessage, Color.LightGreen);
                                 
-                                // Log LISP execution details
-                                if (i < drawingResults.Count)
+                                if (i < _results.Count)
                                 {
-                                    LogLispExecution(drawingResults[i].DrawingName, selectedLispFilePath, txtCommand.Text, commandOutput, false);
+                                    LogLispExecution(_results[i].DrawingName, _selectedLispPath, txtCommand.Text, commandOutput, false);
                                 }
                             }
                             else
                             {
                                 commandOutput = "Failed to open document";
-                                WriteToLog($"Failed to open document: {Path.GetFileName(dwgPath)}");
+                                _logger.Log($"Failed to open document: {Path.GetFileName(dwgPath)}");
                                 
-                                // Still update the drawing result for failed opens
-                                if (i < drawingResults.Count)
+                                if (i < _results.Count)
                                 {
-                                    drawingResults[i].FirstWord = "ERROR";
-                                    drawingResults[i].RestOfMessage = "Failed to open document";
-                                    drawingResults[i].HasError = true;
+                                    _results[i].ResultStatus = "ERROR";
+                                    _results[i].ResultMessage = "Failed to open document";
+                                    _results[i].HasError = true;
                                     
-                                    // Update ListView for failed opens
                                     await UpdateListViewItemAsync(i, "ERROR", "Failed to open document", Color.LightCoral);
-                                    LogLispExecution(drawingResults[i].DrawingName, selectedLispFilePath, txtCommand.Text, "Failed to open document", true);
+                                    LogLispExecution(_results[i].DrawingName, _selectedLispPath, txtCommand.Text, "Failed to open document", true);
                                 }
                             }
                         }
                         catch (Exception docEx)
                         {
-                            WriteToLog($"Document operation error for {Path.GetFileName(dwgPath)}: {docEx.Message}");
+                            _logger.Log($"Document operation error for {Path.GetFileName(dwgPath)}: {docEx.Message}");
                             
-                            // Ensure document is closed only if chkClose is checked, even if there's an error
                             if (openDoc != null && chkClose.Checked)
                             {
                                 try
                                 {
-                                    // Use CloseAndSave() to preserve any saved changes
-                                    openDoc.CloseAndSave(dwgPath);
-                                    WriteToLog($"Document closed after error: {Path.GetFileName(dwgPath)}");
+                                    openDoc.CloseAndDiscard();
+                                    _logger.Log($"Document closed after error: {Path.GetFileName(dwgPath)}");
                                 }
                                 catch
                                 {
-                                    // If CloseAndSave fails, try CloseAndDiscard as last resort
-                                    try
-                                    {
-                                        openDoc.CloseAndDiscard();
-                                        WriteToLog($"Document discarded after error: {Path.GetFileName(dwgPath)}");
-                                    }
-                                    catch
-                                    {
-                                        // Ignore close errors during error handling
-                                        WriteToLog($"Failed to close document after error: {Path.GetFileName(dwgPath)}");
-                                    }
+                                    _logger.Log($"Failed to close document after error: {Path.GetFileName(dwgPath)}");
                                 }
                             }
                             
-                            // Don't rethrow - continue with processing
                             commandOutput = $"Document error: {docEx.Message}";
                         }
                     }
                     catch (Exception ex)
                     {
-                        // Mark as failed
-                        WriteToLog($"General processing error for {Path.GetFileName(dwgPath)}: {ex.Message}");
+                        _logger.Log($"General processing error for {Path.GetFileName(dwgPath)}: {ex.Message}");
                         
-                        drawingResults[i].HasError = true;
-                        drawingResults[i].FirstWord = "ERROR";
-                        drawingResults[i].RestOfMessage = ex.Message;
+                        _results[i].HasError = true;
+                        _results[i].ResultStatus = "ERROR";
+                        _results[i].ResultMessage = ex.Message;
                         
-                        // Update ListView using thread-safe method
                         await UpdateListViewItemAsync(i, "ERROR", ex.Message, Color.LightCoral);
+                        LogLispExecution(_results[i].DrawingName, _selectedLispPath, txtCommand.Text, ex.Message, true);
                         
-                        // Log error details
-                        LogLispExecution(drawingResults[i].DrawingName, selectedLispFilePath, txtCommand.Text, ex.Message, true);
-                        
-                        // Continue with next file even if this one failed
                         continue;
                     }
                 }
             }
+            catch (OperationCanceledException)
+            {
+                _logger.Log("Processing cancelled by user");
+                MessageBox.Show("Processing was cancelled.", "Cancelled", 
+                              MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
             catch (Exception generalEx)
             {
-                WriteToLog($"Critical error during processing: {generalEx.Message}");
+                _logger.Log($"Critical error during processing: {generalEx.Message}");
                 MessageBox.Show($"A critical error occurred during processing: {generalEx.Message}", "Critical Error", 
                               MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
-                // Reset progress and re-enable controls after processing
                 SetControlsEnabled(true);
                 lblProgress.Text = "Complete";
                 
-                // Log session completion
-                WriteToLog("=== LISP Tool Processing Session Completed ===");
-                WriteToLog($"Total drawings processed: {pathsToProcess.Count}");
-                WriteToLog($"Log file location: {currentLogFilePath}");
+                _logger.Log("=== LISP Tool Processing Session Completed ===");
+                _logger.Log($"Total drawings processed: {pathsToProcess.Count}");
+                _logger.Log($"Log file location: {logFilePath}");
+                _logger?.Flush();
             }
         }
 
@@ -535,11 +461,7 @@ namespace AutoCADLispTool
             prgDrawingProgress.Value = currentIndex;
             int percentage = (int)((double)currentIndex / totalCount * 100);
             lblProgress.Text = $"{percentage}%";
-            
-            // Optional: Update the form title to show current processing file
             this.Text = $"Run Lisp - Processing: {currentFileName} ({currentIndex}/{totalCount})";
-            
-            // Removed Application.DoEvents() - this was causing the problem where moving the form stopped processing
         }
 
         // Thread-safe method to update ListView items
@@ -568,64 +490,32 @@ namespace AutoCADLispTool
             }
         }
 
-        // Method to create log file path with date and time
         private string CreateLogFilePath()
         {
             string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
             string logFileName = $"LispTool_Log_{timestamp}.txt";
-            
-            // Create logs directory if it doesn't exist
             string logsDir = Path.Combine(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "Logs");
             if (!Directory.Exists(logsDir))
             {
                 Directory.CreateDirectory(logsDir);
             }
-            
             return Path.Combine(logsDir, logFileName);
         }
 
-        // Method to write to log file
-        private void WriteToLog(string message)
-        {
-            try
-            {
-                if (string.IsNullOrEmpty(currentLogFilePath))
-                    return;
-
-                string logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}";
-                File.AppendAllText(currentLogFilePath, logEntry + Environment.NewLine);
-            }
-            catch (Exception ex)
-            {
-                // Don't show message box for logging errors to avoid interrupting workflow
-                System.Diagnostics.Debug.WriteLine($"Logging error: {ex.Message}");
-            }
-        }
-
-        // Method to log LISP execution details with incremental numbering
         private void LogLispExecution(string drawingName, string lispFile, string command, string output, bool hasError)
         {
-            executionCounter++;
+            _executionCounter++;
             string status = hasError ? "ERROR" : "SUCCESS";
-            string logEntry = $"[{executionCounter:D4}] {drawingName}\t | {status} |\t {output}";
+            string logEntry = $"[{_executionCounter:D4}] {drawingName}\t | {status} |\t {output}";
             
-            // Write directly without timestamp since we use incremental counter
-            try
+            if (_logger != null)
             {
-                if (!string.IsNullOrEmpty(currentLogFilePath))
-                {
-                    File.AppendAllText(currentLogFilePath, logEntry + Environment.NewLine);
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Logging error: {ex.Message}");
+                _logger.Log(logEntry.Substring(logEntry.IndexOf(']') + 2));
             }
         }
 
         private void btnAppend_Click(object sender, EventArgs e)
         {
-            // Create and configure OpenFileDialog for .dwg files with multiselect enabled
             using (OpenFileDialog openFileDialog = new OpenFileDialog())
             {
                 openFileDialog.Filter = "AutoCAD Drawing Files (*.dwg)|*.dwg|All Files (*.*)|*.*";
@@ -633,56 +523,50 @@ namespace AutoCADLispTool
                 openFileDialog.Title = "Append Drawing Files";
                 openFileDialog.CheckFileExists = true;
                 openFileDialog.CheckPathExists = true;
-                openFileDialog.Multiselect = true; // Enable multiple file selection
+                openFileDialog.Multiselect = true;
 
-                // Show the dialog and check if user selected files
                 if (openFileDialog.ShowDialog() == DialogResult.OK)
                 {
                     try
                     {
-                        int addedCount = 0;
-                        
-                        // Add each selected file to the existing list
+                        lstDwgList.BeginUpdate();
                         foreach (string fileName in openFileDialog.FileNames)
                         {
-                            // Check if the file is already in the list to avoid duplicates
-                            if (!selectedDrawingPaths.Contains(fileName))
+                            if (!_drawingPaths.Contains(fileName))
                             {
-                                // Store the full path for command execution
-                                selectedDrawingPaths.Add(fileName);
+                                _drawingPaths.Add(fileName);
                                 
-                                // Create a new drawing result entry
                                 var result = new DrawingResult
                                 {
                                     DrawingName = Path.GetFileName(fileName),
-                                    FirstWord = "",
-                                    RestOfMessage = "",
+                                    DrawingPath = fileName,
+                                    ResultStatus = "",
+                                    ResultMessage = "",
                                     IsProcessed = false,
                                     HasError = false
                                 };
-                                drawingResults.Add(result);
+                                _results.Add(result);
                                 
-                                // Add to ListView
                                 var item = new ListViewItem(result.DrawingName);
-                                item.SubItems.Add(result.FirstWord);
-                                item.SubItems.Add(result.RestOfMessage);
+                                item.SubItems.Add(result.ResultStatus);
+                                item.SubItems.Add(result.ResultMessage);
                                 lstDwgList.Items.Add(item);
-                                
-                                addedCount++;
                             }
-                        } 
-                        
+                        }
                     }
                     catch (Exception ex)
                     {
                         MessageBox.Show($"Error appending drawing files: {ex.Message}", "Error", 
                                       MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
+                    finally
+                    {
+                        lstDwgList.EndUpdate();
+                    }
                 }
             }
         }
 
-        // Method to enable/disable controls during processing
         private void SetControlsEnabled(bool enabled)
         {
             btnClear.Enabled = enabled;
@@ -694,36 +578,24 @@ namespace AutoCADLispTool
             txtCommand.Enabled = enabled;
             btnLoad.Enabled = enabled;
             
-            // Initialize or reset progress controls
             if (enabled)
             {
-                // Reset progress when re-enabling controls
                 prgDrawingProgress.Value = 0;
                 lblProgress.Text = "Ready";
                 this.Text = "Run Lisp";
                 
-                // Cancel any ongoing processing
-                if (cancellationTokenSource != null)
-                {
-                    cancellationTokenSource.Cancel();
-                    cancellationTokenSource = null;
-                }
-            }
-            else
-            {
-                // Create new cancellation token for processing
-                cancellationTokenSource = new System.Threading.CancellationTokenSource();
+                _cancellationTokenSource?.Cancel();
+                _cancellationTokenSource?.Dispose();
+                _cancellationTokenSource = null;
             }
         }
 
         private void btnClear_Click(object sender, EventArgs e)
         {
-            // Clear the drawing list and all related variables
             lstDwgList.Items.Clear();
-            selectedDrawingPaths.Clear();
-            drawingResults.Clear();
+            _drawingPaths.Clear();
+            _results.Clear();
             
-            // Show confirmation message
             MessageBox.Show("Drawing list cleared successfully.", "List Cleared", 
                           MessageBoxButtons.OK, MessageBoxIcon.Information);
         }

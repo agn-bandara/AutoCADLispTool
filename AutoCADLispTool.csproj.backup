@@ -56,16 +56,16 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="AcCoreMgd">
-      <Private>False</Private>
-      <HintPath>C:\Program Files\Autodesk\AutoCAD 2024\AcCoreMgd.dll</HintPath>
+      <SpecificVersion>False</SpecificVersion>
+      <Private>True</Private>
     </Reference>
     <Reference Include="AcDbMgd">
+      <SpecificVersion>False</SpecificVersion>
       <Private>False</Private>
-      <HintPath>C:\Program Files\Autodesk\AutoCAD 2024\AcDbMgd.dll</HintPath>
     </Reference>
     <Reference Include="AcMgd">
+      <SpecificVersion>False</SpecificVersion>
       <Private>False</Private>
-      <HintPath>C:\Program Files\Autodesk\AutoCAD 2024\AcMgd.dll</HintPath>
     </Reference>
     <!--ACA References Begin-->
     <!--ACA Refences End-->
@@ -81,13 +81,12 @@
     <Reference Include="PresentationFramework" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="MainForm.cs">
+    <Compile Include="MainFom.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="MainForm.Designer.cs">
-      <DependentUpon>MainForm.cs</DependentUpon>
+    <Compile Include="MainFom.Designer.cs">
+      <DependentUpon>MainFom.cs</DependentUpon>
     </Compile>
-    <Compile Include="Models\DrawingResult.cs" />
     <Compile Include="myCommands.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -96,12 +95,10 @@
     <Compile Include="myPlugin.cs" />
     <Compile Include="myCommands.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Services\BufferedLogger.cs" />
-    <Compile Include="Services\ProcessingConfig.cs" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="MainForm.resx">
-      <DependentUpon>MainForm.cs</DependentUpon>
+    <EmbeddedResource Include="MainFom.resx">
+      <DependentUpon>MainFom.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="myCommands.resx">
       <DependentUpon>myCommands.cs</DependentUpon>
@@ -132,10 +129,8 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
+    <None Include="AutoCADLispTool\improvements_V2.md" />
     <None Include="AutoCADLispTool\README.md" />
-    <None Include="CHANGELOG.md" />
-    <None Include="IMPLEMENTATION_SUMMARY.md" />
-    <None Include="QUICK_START.md" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

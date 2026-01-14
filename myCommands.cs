@@ -1,11 +1,10 @@
 ﻿// (C) Copyright 2025 by  
 //
 using Autodesk.AutoCAD.ApplicationServices;
-using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
-using Autodesk.AutoCAD.Geometry;
 using Autodesk.AutoCAD.Runtime;
 using System;
+using AcadApp = Autodesk.AutoCAD.ApplicationServices.Application;
 
 // This line is not mandatory, but improves loading performances
 [assembly: CommandClass(typeof(AutoCADLispTool.MyCommands))]
@@ -35,7 +34,7 @@ namespace AutoCADLispTool
             try
             {
                 // Create and show the MainForm in non-modal mode
-                MainFom mainForm = new MainFom();
+                MainForm mainForm = new MainForm();
                 mainForm.Show(); // Non-modal - allows user to continue working in AutoCAD
                 
                 Document doc = Application.DocumentManager.MdiActiveDocument;
