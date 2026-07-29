@@ -1,0 +1,267 @@
+{
+  "packageGovernance": {
+    "totalDistinctPackages": 1,
+    "totalVersionDriftInstances": 0,
+    "targetFramework": "net8.0-windows",
+    "packages": [
+      {
+        "name": "AutoCAD.NET",
+        "totalProjectCount": 1,
+        "distinctVersionCount": 1,
+        "recommendedVersion": "25.1.0",
+        "isCompatible": false,
+        "description": "NuGet package is incompatible",
+        "versions": [
+          {
+            "version": "24.3.0",
+            "projects": [
+              "AutoCADLispTool"
+            ],
+            "isRecommended": false
+          }
+        ],
+        "upgrade": {
+          "newVersion": "25.1.0"
+        }
+      }
+    ]
+  },
+  "projects": [
+    {
+      "name": "AutoCADLispTool",
+      "path": "AutoCADLispTool.csproj",
+      "isSdk": false,
+      "currentFrameworks": [
+        "net472"
+      ],
+      "targetFramework": "net8.0-windows",
+      "dependencies": {
+        "packages": [
+          {
+            "name": "AutoCAD.NET",
+            "version": "24.3.0",
+            "isTransitive": false,
+            "isGlobal": false,
+            "isImplicit": false,
+            "definedIn": [
+              {
+                "path": "AutoCADLispTool.csproj"
+              }
+            ],
+            "description": "NuGet package is incompatible",
+            "compatibility": "newVersionNeeded",
+            "recommendedVersion": "25.1.0",
+            "upgrade": {
+              "newVersion": "25.1.0"
+            }
+          }
+        ],
+        "assemblies": [
+          {
+            "name": "System",
+            "version": "4.0.0.0",
+            "isTransitive": false,
+            "definedIn": [
+              {
+                "path": "AutoCADLispTool.csproj"
+              }
+            ],
+            "physicalPath": "C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.7.2\\System.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "System.Data",
+            "version": "4.0.0.0",
+            "isTransitive": false,
+            "definedIn": [
+              {
+                "path": "AutoCADLispTool.csproj"
+              }
+            ],
+            "physicalPath": "C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.7.2\\System.Data.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "System.Drawing",
+            "version": "4.0.0.0",
+            "isTransitive": false,
+            "definedIn": [
+              {
+                "path": "AutoCADLispTool.csproj"
+              }
+            ],
+            "physicalPath": "C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.7.2\\System.Drawing.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "System.Windows.Forms",
+            "version": "4.0.0.0",
+            "isTransitive": false,
+            "definedIn": [
+              {
+                "path": "AutoCADLispTool.csproj"
+              }
+            ],
+            "physicalPath": "C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.7.2\\System.Windows.Forms.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "System.Xml",
+            "version": "4.0.0.0",
+            "isTransitive": false,
+            "definedIn": [
+              {
+                "path": "AutoCADLispTool.csproj"
+              }
+            ],
+            "physicalPath": "C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.7.2\\System.Xml.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "WindowsBase",
+            "version": "4.0.0.0",
+            "isTransitive": false,
+            "definedIn": [
+              {
+                "path": "AutoCADLispTool.csproj"
+              }
+            ],
+            "physicalPath": "C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.7.2\\WindowsBase.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "PresentationCore",
+            "version": "4.0.0.0",
+            "isTransitive": false,
+            "definedIn": [
+              {
+                "path": "AutoCADLispTool.csproj"
+              }
+            ],
+            "physicalPath": "C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.7.2\\PresentationCore.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "PresentationFramework",
+            "version": "4.0.0.0",
+            "isTransitive": false,
+            "definedIn": [
+              {
+                "path": "AutoCADLispTool.csproj"
+              }
+            ],
+            "physicalPath": "C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.7.2\\PresentationFramework.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "System.Core",
+            "version": "4.0.0.0",
+            "isTransitive": true,
+            "physicalPath": "C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.7.2\\System.Core.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "mscorlib",
+            "version": "4.0.0.0",
+            "isTransitive": true,
+            "physicalPath": "C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.7.2\\mscorlib.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "accoremgd",
+            "version": "24.3.0.0",
+            "isTransitive": true,
+            "physicalPath": "C:\\Users\\user\\.nuget\\packages\\autocad.net.core\\24.3.0\\lib\\net47\\AcCoreMgd.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "AcCui",
+            "version": "24.3.0.0",
+            "isTransitive": true,
+            "physicalPath": "C:\\Users\\user\\.nuget\\packages\\autocad.net\\24.3.0\\lib\\net47\\AcCui.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "Acdbmgd",
+            "version": "24.3.0.0",
+            "isTransitive": true,
+            "physicalPath": "C:\\Users\\user\\.nuget\\packages\\autocad.net.model\\24.3.0\\lib\\net47\\AcDbMgd.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "acdbmgdbrep",
+            "version": "24.3.0.0",
+            "isTransitive": true,
+            "physicalPath": "C:\\Users\\user\\.nuget\\packages\\autocad.net.model\\24.3.0\\lib\\net47\\acdbmgdbrep.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "AcDx",
+            "version": "24.3.0.0",
+            "isTransitive": true,
+            "physicalPath": "C:\\Users\\user\\.nuget\\packages\\autocad.net\\24.3.0\\lib\\net47\\AcDx.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "acmgd",
+            "version": "24.3.0.0",
+            "isTransitive": true,
+            "physicalPath": "C:\\Users\\user\\.nuget\\packages\\autocad.net\\24.3.0\\lib\\net47\\AcMgd.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "AcMr",
+            "version": "24.3.0.0",
+            "isTransitive": true,
+            "physicalPath": "C:\\Users\\user\\.nuget\\packages\\autocad.net\\24.3.0\\lib\\net47\\AcMr.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "AcSeamless",
+            "version": "24.3.0.0",
+            "isTransitive": true,
+            "physicalPath": "C:\\Users\\user\\.nuget\\packages\\autocad.net\\24.3.0\\lib\\net47\\AcSeamless.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "AcTcMgd",
+            "version": "24.3.0.0",
+            "isTransitive": true,
+            "physicalPath": "C:\\Users\\user\\.nuget\\packages\\autocad.net\\24.3.0\\lib\\net47\\AcTcMgd.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "AcWindows",
+            "version": "24.3.0.0",
+            "isTransitive": true,
+            "physicalPath": "C:\\Users\\user\\.nuget\\packages\\autocad.net\\24.3.0\\lib\\net47\\AcWindows.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "AdUIMgd",
+            "version": "24.3.0.0",
+            "isTransitive": true,
+            "physicalPath": "C:\\Users\\user\\.nuget\\packages\\autocad.net\\24.3.0\\lib\\net47\\AdUIMgd.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "AdUiPalettes",
+            "version": "24.3.0.0",
+            "isTransitive": true,
+            "physicalPath": "C:\\Users\\user\\.nuget\\packages\\autocad.net\\24.3.0\\lib\\net47\\AdUiPalettes.dll",
+            "compatibility": "valid"
+          },
+          {
+            "name": "AdWindows",
+            "version": "5.0.1.2",
+            "isTransitive": true,
+            "physicalPath": "C:\\Users\\user\\.nuget\\packages\\autocad.net\\24.3.0\\lib\\net47\\AdWindows.dll",
+            "compatibility": "valid"
+          }
+        ],
+        "projectReferences": [],
+        "frameworkReferences": []
+      }
+    }
+  ]
+}

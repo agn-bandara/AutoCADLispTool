@@ -125,6 +125,8 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
+    <None Include=".github\upgrades\scenarios\dotnet-version-upgrade\scenario-instructions.md" />
+    <None Include=".github\upgrades\scenarios\dotnet-version-upgrade\upgrade-options.md" />
     <None Include="AutoCADLispTool\README.md" />
     <None Include="CHANGELOG.md" />
     <None Include="IMPLEMENTATION_SUMMARY.md" />
