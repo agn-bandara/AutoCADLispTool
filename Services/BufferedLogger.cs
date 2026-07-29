@@ -10,21 +10,31 @@ namespace AutoCADLispTool.Services
     /// </summary>
     public sealed class BufferedLogger : IDisposable
     {
+        private const int MaxBufferedEntries = 10000;
+        private const int TimerIntervalMs = 5000;
+
         private readonly string _logFilePath;
         private readonly List<string> _buffer;
         private readonly object _lock = new object();
         private readonly int _flushThreshold;
         private readonly Timer _flushTimer;
+        private StreamWriter _writer;
         private bool _disposed;
 
         public BufferedLogger(string logFilePath, int flushThreshold = 10)
         {
+            if (string.IsNullOrWhiteSpace(logFilePath))
+            {
+                throw new ArgumentException("A log file path is required.", nameof(logFilePath));
+            }
+
             _logFilePath = logFilePath;
-            _buffer = new List<string>();
-            _flushThreshold = flushThreshold;
-            _flushTimer = new Timer(_ => Flush(), null, 5000, 5000);
-            
+            _flushThreshold = Math.Max(1, flushThreshold);
+            _buffer = new List<string>(_flushThreshold);
+
             EnsureDirectoryExists();
+
+            _flushTimer = new Timer(_ => Flush(), null, TimerIntervalMs, TimerIntervalMs);
         }
 
         /// <summary>
@@ -32,15 +42,21 @@ namespace AutoCADLispTool.Services
         /// </summary>
         public void Log(string message)
         {
-            if (_disposed) return;
-            
-            var entry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}";
             lock (_lock)
             {
-                _buffer.Add(entry);
+                if (_disposed) return;
+
+                _buffer.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}");
+
                 if (_buffer.Count >= _flushThreshold)
                 {
                     FlushInternal();
+                }
+                else if (_buffer.Count > MaxBufferedEntries)
+                {
+                    // Writing is failing persistently; drop the oldest entries rather
+                    // than growing the buffer without bound.
+                    _buffer.RemoveRange(0, _buffer.Count - MaxBufferedEntries);
                 }
             }
         }
@@ -62,7 +78,17 @@ namespace AutoCADLispTool.Services
             
             try
             {
-                File.AppendAllLines(_logFilePath, _buffer);
+                if (_writer == null)
+                {
+                    _writer = new StreamWriter(_logFilePath, true) { AutoFlush = false };
+                }
+
+                foreach (string entry in _buffer)
+                {
+                    _writer.WriteLine(entry);
+                }
+
+                _writer.Flush();
                 _buffer.Clear();
             }
             catch (Exception ex)
@@ -82,11 +108,31 @@ namespace AutoCADLispTool.Services
 
         public void Dispose()
         {
-            if (_disposed) return;
-            
-            _disposed = true;
-            _flushTimer?.Dispose();
-            Flush();
+            lock (_lock)
+            {
+                if (_disposed) return;
+                _disposed = true;
+            }
+
+            // Wait for any in-flight timer callback so it cannot race the final flush.
+            using (var timerDisposed = new ManualResetEvent(false))
+            {
+                if (_flushTimer.Dispose(timerDisposed))
+                {
+                    timerDisposed.WaitOne();
+                }
+            }
+
+            lock (_lock)
+            {
+                FlushInternal();
+
+                if (_writer != null)
+                {
+                    _writer.Dispose();
+                    _writer = null;
+                }
+            }
         }
     }
 }

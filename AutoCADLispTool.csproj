@@ -90,6 +90,8 @@
     <Compile Include="myCommands.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Services\BufferedLogger.cs" />
+    <Compile Include="Services\DrawingProcessor.cs" />
+    <Compile Include="Services\LispJob.cs" />
     <Compile Include="Services\ProcessingConfig.cs" />
   </ItemGroup>
   <ItemGroup>

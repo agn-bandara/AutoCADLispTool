@@ -17,6 +17,10 @@ namespace AutoCADLispTool
     // is implicitly per-document!
     public class MyCommands
     {
+        // The form is modeless and owned by the AutoCAD main window, so a single
+        // shared instance is reused instead of opening a new window per invocation.
+        private static MainForm _mainForm;
+
         // The CommandMethod attribute can be applied to any public  member 
         // function of any public class.
         // The function should take no arguments and return nothing.
@@ -31,27 +35,30 @@ namespace AutoCADLispTool
         [CommandMethod("MyGroup", "LispTool", "LispToolLocal", CommandFlags.Modal)]
         public void LispTool()
         {
+            Document doc = AcadApp.DocumentManager.MdiActiveDocument;
+            Editor ed = doc?.Editor;
+
             try
             {
-                // Create and show the MainForm in non-modal mode
-                MainForm mainForm = new MainForm();
-                mainForm.Show(); // Non-modal - allows user to continue working in AutoCAD
-                
-                Document doc = Application.DocumentManager.MdiActiveDocument;
-                if (doc != null)
+                if (_mainForm == null || _mainForm.IsDisposed)
                 {
-                    Editor ed = doc.Editor;
-                    ed.WriteMessage("\nLisp Tool window opened.");
+                    _mainForm = new MainForm();
+                    _mainForm.FormClosed += (s, e) => _mainForm = null;
+
+                    // Parents the form to the AutoCAD main window so it stays on top
+                    // and receives keyboard input correctly.
+                    AcadApp.ShowModelessDialog(_mainForm);
+                    ed?.WriteMessage("\nLisp Tool window opened.");
+                }
+                else
+                {
+                    _mainForm.Activate();
+                    ed?.WriteMessage("\nLisp Tool window is already open.");
                 }
             }
             catch (System.Exception ex)
             {
-                Document doc = Application.DocumentManager.MdiActiveDocument;
-                if (doc != null)
-                {
-                    Editor ed = doc.Editor;
-                    ed.WriteMessage($"\nError opening Lisp Tool: {ex.Message}");
-                }
+                ed?.WriteMessage($"\nError opening Lisp Tool: {ex.Message}");
             }
         }
     }
