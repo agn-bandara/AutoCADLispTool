@@ -577,6 +577,7 @@
 
 ;; Helper: Purge all layers except "0"
 (defun _purge-unused-layers ( / )
+  (setvar "CLAYER" "0")
   (princ "\nPurging unused layers...")
   (repeat 4
     (vl-cmdf "-PURGE" "LA" "*" "N")
@@ -619,6 +620,8 @@
           (exit)
       )
   )
+  (princ "\n--- Setting Layer 0 as current layer ---")
+  (setvar "CLAYER" "0")
   (princ "\n--- Moving all drawing objects to Layer 0 ---")
   (if (setq ss (ssget "X"))
       (progn
