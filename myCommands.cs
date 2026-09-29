@@ -32,8 +32,8 @@ namespace AutoCADLispTool
         // context menu.
 
         // Command to show MainForm in non-modal mode
-        [CommandMethod("MyGroup", "LispTool", "LispToolLocal", CommandFlags.Modal)]
-        public void LispTool()
+        [CommandMethod("MyGroup", "OpenLispTool", "OpenLispToolLocal", CommandFlags.Modal)]
+        public void OpenLispTool()
         {
             Document doc = AcadApp.DocumentManager.MdiActiveDocument;
             Editor ed = doc?.Editor;
