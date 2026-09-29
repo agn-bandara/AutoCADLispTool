@@ -31,6 +31,7 @@ namespace AutoCADLispTool
         private BufferedLogger _logger;
         private ProcessingConfig _config;
         private string _selectedLispPath = string.Empty;
+        private string _statusHelpText = string.Empty;
         private bool _isProcessing;
 
         public MainForm()
@@ -41,7 +42,11 @@ namespace AutoCADLispTool
             SetupContextMenu();
             SetupDragAndDrop();
             _config = ProcessingConfig.LoadFromFile(GetConfigFilePath());
+            _statusHelpText = statusLabelHelp.Text;
+            statusLabelHelp.AutoToolTip = false;
+            statusStrip.Resize += (sender, e) => FitStatusHelpText();
             PreloadDefaultLisp();
+            FitStatusHelpText();
         }
 
         private void PreloadDefaultLisp()
@@ -59,7 +64,7 @@ namespace AutoCADLispTool
             }
 
             SelectLispFile(defaultLispPath);
-            statusLabelHelp.Text = "3D check library loaded. Select drawings to start.";
+            UpdateStatusHelp("3D check library loaded. Select drawings to start.");
         }
 
         private void SelectLispFile(string path)
@@ -163,14 +168,14 @@ namespace AutoCADLispTool
 
             if (dwgFiles.Length == 0)
             {
-                statusLabelHelp.Text = "Only .dwg files can be added by drag-and-drop.";
+                UpdateStatusHelp("Only .dwg files can be added by drag-and-drop.");
                 return;
             }
 
             try
             {
                 AddDrawings(dwgFiles, replaceExisting: false);
-                statusLabelHelp.Text = $"Added {dwgFiles.Length} drawing(s) from drag-and-drop.";
+                UpdateStatusHelp($"Added {dwgFiles.Length} drawing(s) from drag-and-drop.");
             }
             catch (Exception ex)
             {
@@ -205,7 +210,7 @@ namespace AutoCADLispTool
                     try
                     {
                         SelectLispFile(openFileDialog.FileName);
-                        statusLabelHelp.Text = "LISP file selected. Select drawings to start.";
+                        UpdateStatusHelp("LISP file selected. Select drawings to start.");
                     }
                     catch (Exception ex)
                     {
@@ -359,11 +364,11 @@ namespace AutoCADLispTool
 
             if (removed == 0)
             {
-                statusLabelHelp.Text = "No successful drawings to clear.";
+                UpdateStatusHelp("No successful drawings to clear.");
                 return;
             }
 
-            statusLabelHelp.Text = $"Removed {removed} successful drawing{(removed == 1 ? "" : "s")}. Unsuccessful drawings remain.";
+            UpdateStatusHelp($"Removed {removed} successful drawing{(removed == 1 ? "" : "s")}. Unsuccessful drawings remain.");
             MessageBox.Show(
                 $"Removed {removed} successful drawing{(removed == 1 ? "" : "s")}. Unsuccessful drawings remain in the list.",
                 "Successful Runs Cleared",
@@ -388,6 +393,7 @@ namespace AutoCADLispTool
         {
             int count = _results.Count;
             statusLabelCount.Text = $"{count} drawing{(count == 1 ? "" : "s")}";
+            FitStatusHelpText();
         }
 
         private void UpdateRunMetrics(IList<DrawingResult> batch)
@@ -428,6 +434,7 @@ namespace AutoCADLispTool
             }
 
             statusLabelMetrics.Text = $"Success {success}   Avg {average}   ETA {eta}";
+            FitStatusHelpText();
         }
 
         private static string FormatDuration(TimeSpan time)
@@ -447,10 +454,51 @@ namespace AutoCADLispTool
 
         private void UpdateStatusHelp(string message)
         {
-            if (!string.IsNullOrEmpty(message))
+            if (string.IsNullOrEmpty(message))
             {
-                statusLabelHelp.Text = message;
+                return;
             }
+
+            _statusHelpText = message;
+            FitStatusHelpText();
+        }
+
+        private void FitStatusHelpText()
+        {
+            string full = _statusHelpText ?? string.Empty;
+            statusLabelHelp.ToolTipText = full;
+
+            int reserved = statusLabelMetrics.GetPreferredSize(Size.Empty).Width
+                + statusLabelCount.GetPreferredSize(Size.Empty).Width
+                + 28;
+            int available = Math.Max(48, statusStrip.ClientSize.Width - reserved);
+
+            if (TextRenderer.MeasureText(full, statusLabelHelp.Font).Width <= available)
+            {
+                statusLabelHelp.Text = full;
+                return;
+            }
+
+            const string ellipsis = "...";
+            int low = 0;
+            int high = full.Length;
+            string fitted = ellipsis;
+            while (low <= high)
+            {
+                int mid = (low + high) / 2;
+                string candidate = full.Substring(0, mid).TrimEnd() + ellipsis;
+                if (TextRenderer.MeasureText(candidate, statusLabelHelp.Font).Width <= available)
+                {
+                    fitted = candidate;
+                    low = mid + 1;
+                }
+                else
+                {
+                    high = mid - 1;
+                }
+            }
+
+            statusLabelHelp.Text = fitted;
         }
 
         private async void btnProcess_Click(object sender, EventArgs e)
