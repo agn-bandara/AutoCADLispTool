@@ -107,6 +107,7 @@ namespace AutoCADLispTool
             _toolTip.SetToolTip(btnDwgs, "Replace the current drawing list with selected DWG files.");
             _toolTip.SetToolTip(btnAppend, "Add selected DWG files to the existing drawing list.");
             _toolTip.SetToolTip(btnClear, "Remove all drawings from the list.");
+            _toolTip.SetToolTip(btnClearSuccess, "Remove drawings that finished successfully and keep unsuccessful ones.");
             _toolTip.SetToolTip(btnProcess, "Start or cancel processing the drawing list.");
             _toolTip.SetToolTip(chkClose, "Close the drawing document after each drawing finishes processing.");
         }
@@ -120,6 +121,9 @@ namespace AutoCADLispTool
             ToolStripMenuItem clearItem = new ToolStripMenuItem("Clear List");
             clearItem.Click += (sender, e) => ClearDrawingList();
             _listContextMenu.Items.Add(clearItem);
+            ToolStripMenuItem clearSuccessItem = new ToolStripMenuItem("Clear Successful");
+            clearSuccessItem.Click += (sender, e) => ClearSuccessfulRuns();
+            _listContextMenu.Items.Add(clearSuccessItem);
             lstDwgList.ContextMenuStrip = _listContextMenu;
         }
 
@@ -231,6 +235,11 @@ namespace AutoCADLispTool
                           MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
+        private void btnClearSuccess_Click(object sender, EventArgs e)
+        {
+            ClearSuccessfulRuns();
+        }
+
         private void PickDrawings(string title, bool replaceExisting)
         {
             using (OpenFileDialog openFileDialog = new OpenFileDialog())
@@ -308,6 +317,53 @@ namespace AutoCADLispTool
             lstDwgList.Items.Clear();
             _results.Clear();
             UpdateDrawingCountStatus();
+        }
+
+        /// <summary>
+        /// Removes drawings that completed without error. Failed drawings, and drawings
+        /// that have not been processed yet, stay in the list so they can be run again.
+        /// </summary>
+        public void ClearSuccessfulRuns()
+        {
+            if (_isProcessing)
+            {
+                return;
+            }
+
+            int removed = 0;
+            lstDwgList.BeginUpdate();
+            try
+            {
+                for (int i = _results.Count - 1; i >= 0; i--)
+                {
+                    if (!_results[i].IsSuccess)
+                    {
+                        continue;
+                    }
+
+                    _results.RemoveAt(i);
+                    lstDwgList.Items.RemoveAt(i);
+                    removed++;
+                }
+            }
+            finally
+            {
+                lstDwgList.EndUpdate();
+                UpdateDrawingCountStatus();
+            }
+
+            if (removed == 0)
+            {
+                statusLabelHelp.Text = "No successful drawings to clear.";
+                return;
+            }
+
+            statusLabelHelp.Text = $"Removed {removed} successful drawing{(removed == 1 ? "" : "s")}. Unsuccessful drawings remain.";
+            MessageBox.Show(
+                $"Removed {removed} successful drawing{(removed == 1 ? "" : "s")}. Unsuccessful drawings remain in the list.",
+                "Successful Runs Cleared",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
         }
 
         public void RemoveSelectedDrawing()
@@ -499,6 +555,7 @@ namespace AutoCADLispTool
         private void SetControlsEnabled(bool enabled)
         {
             btnClear.Enabled = enabled;
+            btnClearSuccess.Enabled = enabled;
             btnDwgs.Enabled = enabled;
             btnAppend.Enabled = enabled;
             chkClose.Enabled = enabled;
