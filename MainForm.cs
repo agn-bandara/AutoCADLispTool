@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -19,6 +20,9 @@ namespace AutoCADLispTool
     {
         private const string ConfigFileName = "LispTool.config.xml";
         private const string DefaultLispFileName = "3DCheck_V02.lsp";
+
+        [DllImport("user32.dll")]
+        private static extern bool EnableWindow(IntPtr hWnd, bool bEnable);
 
         private readonly List<DrawingResult> _results = new List<DrawingResult>();
         private readonly ToolTip _toolTip = new ToolTip();
@@ -438,6 +442,8 @@ namespace AutoCADLispTool
 
             _isProcessing = true;
             SetControlsEnabled(false);
+            // Keep the form modeless so LISP can run, but ignore clicks in the drawing.
+            SetAutoCadInputEnabled(false);
 
             prgDrawingProgress.Minimum = 0;
             prgDrawingProgress.Maximum = _results.Count;
@@ -502,6 +508,7 @@ namespace AutoCADLispTool
                 _cancellationTokenSource = null;
 
                 _isProcessing = false;
+                SetAutoCadInputEnabled(true);
                 SetControlsEnabled(true);
                 lblProgress.Text = "Complete";
                 UpdateStatusHelp("Processing complete.");
@@ -572,6 +579,28 @@ namespace AutoCADLispTool
                 lblProgress.Text = "Ready";
                 this.Text = "Run Lisp";
             }
+        }
+
+        private static void SetAutoCadInputEnabled(bool enabled)
+        {
+            try
+            {
+                IntPtr mainWindow = AcadApp.MainWindow.Handle;
+                if (mainWindow != IntPtr.Zero)
+                {
+                    EnableWindow(mainWindow, enabled);
+                }
+            }
+            catch (Exception)
+            {
+                // Leave AutoCAD as it is if the main window handle cannot be changed.
+            }
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            SetAutoCadInputEnabled(true);
+            base.OnFormClosed(e);
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
