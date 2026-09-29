@@ -17,6 +17,7 @@ namespace AutoCADLispTool.Services
     public class DrawingProcessor
     {
         private const string ResultVariableName = "lispToolResult";
+        private const int ResultWaitTimeoutMs = 120000;
 
         private readonly ProcessingConfig _config;
         private readonly BufferedLogger _logger;
@@ -65,26 +66,22 @@ namespace AutoCADLispTool.Services
                 string output = "Document opened successfully";
                 bool hasError = false;
 
-                using (document.LockDocument())
+                // Do not lock the document across this wait. SendStringToExecute
+                // cannot run while the lock is held, so a fixed delay would read
+                // lispToolResult before the command had started.
+                if (job.HasCommand)
                 {
-                    _logger.Log($"Document locked for processing: {result.DrawingName}");
-
-                    if (job.HasCommand)
-                    {
-                        CommandOutcome outcome = await ExecuteCommandAsync(document, job, result.DrawingName, token);
-                        output = outcome.Output;
-                        hasError = outcome.HasError;
-                    }
-
-                    string saveError = await SaveAsync(document, result, token);
-                    if (saveError != null)
-                    {
-                        output = saveError;
-                        hasError = true;
-                    }
+                    CommandOutcome outcome = await ExecuteCommandAsync(document, job, result.DrawingName, token);
+                    output = outcome.Output;
+                    hasError = outcome.HasError;
                 }
 
-                _logger.Log($"Document lock released for: {result.DrawingName}");
+                string saveError = await SaveAsync(document, result, token);
+                if (saveError != null)
+                {
+                    output = saveError;
+                    hasError = true;
+                }
 
                 result.SetOutcome(output, hasError);
             }
@@ -127,11 +124,10 @@ namespace AutoCADLispTool.Services
 
                     // Clear any value left over from the previous drawing so a failed
                     // evaluation cannot be reported as the previous drawing's result.
-                    document.SendStringToExecute($"(setq {ResultVariableName} nil)\n", true, false, false);
+                    await ClearLispResultAsync(document, token);
                     document.SendStringToExecute($"(setq {ResultVariableName} {job.Command})\n", true, false, true);
-                    await Task.Delay(_config.CommandExecutionDelayMs, token);
 
-                    object value = document.GetLispSymbol(ResultVariableName);
+                    object value = await WaitForLispResultAsync(document, token);
                     string output = value != null ? value.ToString() : "LISP no result";
 
                     Editor editor = document.Editor;
@@ -153,6 +149,58 @@ namespace AutoCADLispTool.Services
             {
                 _logger.Log($"Command execution error for {drawingName}: {ex}");
                 return new CommandOutcome($"Command execution error: {ex.Message}", true);
+            }
+        }
+
+        private async Task ClearLispResultAsync(Document document, CancellationToken token)
+        {
+            if (ReadLispSymbol(document) == null)
+            {
+                return;
+            }
+
+            document.SendStringToExecute($"(setq {ResultVariableName} nil)\n", true, false, false);
+            await WaitForLispSymbolAsync(document, value => value == null, token);
+        }
+
+        private async Task<object> WaitForLispResultAsync(Document document, CancellationToken token)
+        {
+            object value = await WaitForLispSymbolAsync(document, candidate => candidate != null, token);
+            if (value == null)
+            {
+                _logger.Log($"Timed out after {ResultWaitTimeoutMs}ms waiting for {ResultVariableName}.");
+            }
+
+            return value;
+        }
+
+        private async Task<object> WaitForLispSymbolAsync(Document document, Func<object, bool> isReady, CancellationToken token)
+        {
+            int waitedMs = 0;
+            int pollMs = Math.Max(50, _config.CommandExecutionDelayMs);
+
+            while (waitedMs <= ResultWaitTimeoutMs)
+            {
+                token.ThrowIfCancellationRequested();
+
+                object value = ReadLispSymbol(document);
+                if (isReady(value))
+                {
+                    return value;
+                }
+
+                await Task.Delay(pollMs, token);
+                waitedMs += pollMs;
+            }
+
+            return ReadLispSymbol(document);
+        }
+
+        private static object ReadLispSymbol(Document document)
+        {
+            using (document.LockDocument())
+            {
+                return document.GetLispSymbol(ResultVariableName);
             }
         }
 
