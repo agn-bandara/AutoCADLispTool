@@ -47,6 +47,7 @@
             this.lblProgress = new System.Windows.Forms.Label();
             this.statusStrip = new System.Windows.Forms.StatusStrip();
             this.statusLabelHelp = new System.Windows.Forms.ToolStripStatusLabel();
+            this.statusLabelMetrics = new System.Windows.Forms.ToolStripStatusLabel();
             this.statusLabelCount = new System.Windows.Forms.ToolStripStatusLabel();
             this.statusStrip.SuspendLayout();
             this.SuspendLayout();
@@ -199,6 +200,7 @@
             // 
             this.statusStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.statusLabelHelp,
+            this.statusLabelMetrics,
             this.statusLabelCount});
             this.statusStrip.Location = new System.Drawing.Point(0, 418);
             this.statusStrip.Name = "statusStrip";
@@ -214,6 +216,13 @@
             this.statusLabelHelp.Spring = true;
             this.statusLabelHelp.Text = "Select a LISP file and drawings to start.";
             this.statusLabelHelp.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            // 
+            // statusLabelMetrics
+            // 
+            this.statusLabelMetrics.Name = "statusLabelMetrics";
+            this.statusLabelMetrics.Size = new System.Drawing.Size(150, 17);
+            this.statusLabelMetrics.Text = "Success 0   Avg --   ETA --";
+            this.statusLabelMetrics.ToolTipText = "Successful drawings in this run, average time per drawing, and estimated time remaining.";
             // 
             // statusLabelCount
             // 
@@ -270,6 +279,7 @@
         private System.Windows.Forms.Label lblProgress;
         private System.Windows.Forms.StatusStrip statusStrip;
         private System.Windows.Forms.ToolStripStatusLabel statusLabelHelp;
+        private System.Windows.Forms.ToolStripStatusLabel statusLabelMetrics;
         private System.Windows.Forms.ToolStripStatusLabel statusLabelCount;
     }
 }

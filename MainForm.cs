@@ -321,6 +321,7 @@ namespace AutoCADLispTool
             lstDwgList.Items.Clear();
             _results.Clear();
             UpdateDrawingCountStatus();
+            UpdateRunMetrics(_results);
         }
 
         /// <summary>
@@ -387,6 +388,61 @@ namespace AutoCADLispTool
         {
             int count = _results.Count;
             statusLabelCount.Text = $"{count} drawing{(count == 1 ? "" : "s")}";
+        }
+
+        private void UpdateRunMetrics(IList<DrawingResult> batch)
+        {
+            int success = 0;
+            int finished = 0;
+            double totalSeconds = 0;
+
+            foreach (DrawingResult result in batch)
+            {
+                if (!result.IsProcessed)
+                {
+                    continue;
+                }
+
+                finished++;
+                totalSeconds += result.ProcessingTime.TotalSeconds;
+                if (result.IsSuccess)
+                {
+                    success++;
+                }
+            }
+
+            int remaining = batch.Count - finished;
+            string average = finished == 0 ? "--" : FormatDuration(TimeSpan.FromSeconds(totalSeconds / finished));
+            string eta;
+            if (finished == 0)
+            {
+                eta = "--";
+            }
+            else if (remaining == 0)
+            {
+                eta = "0s";
+            }
+            else
+            {
+                eta = FormatDuration(TimeSpan.FromSeconds((totalSeconds / finished) * remaining));
+            }
+
+            statusLabelMetrics.Text = $"Success {success}   Avg {average}   ETA {eta}";
+        }
+
+        private static string FormatDuration(TimeSpan time)
+        {
+            if (time.TotalHours >= 1)
+            {
+                return string.Format("{0}h {1:00}m", (int)time.TotalHours, time.Minutes);
+            }
+
+            if (time.TotalMinutes >= 1)
+            {
+                return string.Format("{0}m {1:00}s", (int)time.TotalMinutes, time.Seconds);
+            }
+
+            return string.Format("{0:0.0}s", time.TotalSeconds);
         }
 
         private void UpdateStatusHelp(string message)
@@ -456,6 +512,13 @@ namespace AutoCADLispTool
             var processor = new DrawingProcessor(_config, _logger);
             var batch = _results.ToList();
             int processedCount = 0;
+            foreach (DrawingResult pending in batch)
+            {
+                pending.IsProcessed = false;
+                pending.HasError = false;
+                pending.ProcessingTime = TimeSpan.Zero;
+            }
+            UpdateRunMetrics(batch);
 
             try
             {
@@ -482,6 +545,7 @@ namespace AutoCADLispTool
 
                     processedCount++;
                     UpdateListViewItem(result);
+                    UpdateRunMetrics(batch);
                 }
             }
             catch (OperationCanceledException)
