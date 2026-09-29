@@ -18,6 +18,7 @@ namespace AutoCADLispTool
     public partial class MainForm : Form
     {
         private const string ConfigFileName = "LispTool.config.xml";
+        private const string DefaultLispFileName = "3DCheck_V02.lsp";
 
         private readonly List<DrawingResult> _results = new List<DrawingResult>();
         private readonly ToolTip _toolTip = new ToolTip();
@@ -32,7 +33,36 @@ namespace AutoCADLispTool
         {
             InitializeComponent();
             SetupListView();
+            SetupToolTips();
+            SetupContextMenu();
+            SetupDragAndDrop();
             _config = ProcessingConfig.LoadFromFile(GetConfigFilePath());
+            PreloadDefaultLisp();
+        }
+
+        private void PreloadDefaultLisp()
+        {
+            string assemblyDirectory = Path.GetDirectoryName(typeof(MainForm).Assembly.Location);
+            if (string.IsNullOrEmpty(assemblyDirectory))
+            {
+                return;
+            }
+
+            string defaultLispPath = Path.Combine(assemblyDirectory, DefaultLispFileName);
+            if (!File.Exists(defaultLispPath))
+            {
+                return;
+            }
+
+            SelectLispFile(defaultLispPath);
+            statusLabelHelp.Text = "3D check library loaded. Select drawings to start.";
+        }
+
+        private void SelectLispFile(string path)
+        {
+            _selectedLispPath = path;
+            txtLspFile.Text = Path.GetFileName(path);
+            _toolTip.SetToolTip(txtLspFile, path);
         }
 
         // Setup ListView with 3 columns
@@ -42,19 +72,107 @@ namespace AutoCADLispTool
             lstDwgList.FullRowSelect = true;
             lstDwgList.GridLines = true;
             lstDwgList.HeaderStyle = ColumnHeaderStyle.Nonclickable;
+            lstDwgList.Columns.Clear();
 
-            // Add columns
-            lstDwgList.Columns.Add("Drawing Name", 120);
+            // Add columns with proportional widths
+            lstDwgList.Columns.Add("Drawing Name", 140);
             lstDwgList.Columns.Add("Result", 80);
             lstDwgList.Columns.Add("Values", 120);
+            ResizeListViewColumns();
+        }
+
+        private void ResizeListViewColumns()
+        {
+            if (lstDwgList.Columns.Count < 3)
+                return;
+
+            int availableWidth = lstDwgList.ClientSize.Width - SystemInformation.VerticalScrollBarWidth;
+            if (availableWidth <= 0)
+                return;
+
+            lstDwgList.Columns[0].Width = Math.Max(80, (int)(availableWidth * 0.45));
+            lstDwgList.Columns[1].Width = Math.Max(60, (int)(availableWidth * 0.25));
+            lstDwgList.Columns[2].Width = Math.Max(80, availableWidth - lstDwgList.Columns[0].Width - lstDwgList.Columns[1].Width - 4);
+        }
+
+        private void SetupToolTips()
+        {
+            _toolTip.AutoPopDelay = 5000;
+            _toolTip.InitialDelay = 500;
+            _toolTip.ReshowDelay = 200;
+            _toolTip.ShowAlways = true;
+
+            _toolTip.SetToolTip(btnLoad, "Replace the loaded LISP file. The 3D check library is selected by default.");
+            _toolTip.SetToolTip(txtCommand, "Optional AutoCAD command to execute after loading the LISP file.");
+            _toolTip.SetToolTip(btnDwgs, "Replace the current drawing list with selected DWG files.");
+            _toolTip.SetToolTip(btnAppend, "Add selected DWG files to the existing drawing list.");
+            _toolTip.SetToolTip(btnClear, "Remove all drawings from the list.");
+            _toolTip.SetToolTip(btnProcess, "Start or cancel processing the drawing list.");
+            _toolTip.SetToolTip(chkClose, "Close the drawing document after each drawing finishes processing.");
+        }
+
+        private void SetupContextMenu()
+        {
+            _listContextMenu = new ContextMenuStrip();
+            ToolStripMenuItem removeItem = new ToolStripMenuItem("Remove");
+            removeItem.Click += (sender, e) => RemoveSelectedDrawing();
+            _listContextMenu.Items.Add(removeItem);
+            ToolStripMenuItem clearItem = new ToolStripMenuItem("Clear List");
+            clearItem.Click += (sender, e) => ClearDrawingList();
+            _listContextMenu.Items.Add(clearItem);
+            lstDwgList.ContextMenuStrip = _listContextMenu;
+        }
+
+        private void SetupDragAndDrop()
+        {
+            lstDwgList.DragEnter += LstDwgList_DragEnter;
+            lstDwgList.DragDrop += LstDwgList_DragDrop;
+        }
+
+        private void LstDwgList_DragEnter(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                e.Effect = DragDropEffects.Copy;
+            }
+            else
+            {
+                e.Effect = DragDropEffects.None;
+            }
+        }
+
+        private void LstDwgList_DragDrop(object sender, DragEventArgs e)
+        {
+            string[] droppedFiles = e.Data.GetData(DataFormats.FileDrop) as string[];
+            if (droppedFiles == null || droppedFiles.Length == 0)
+            {
+                return;
+            }
+
+            string[] dwgFiles = droppedFiles
+                .Where(path => string.Equals(Path.GetExtension(path), ".dwg", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+            if (dwgFiles.Length == 0)
+            {
+                statusLabelHelp.Text = "Only .dwg files can be added by drag-and-drop.";
+                return;
+            }
+
+            try
+            {
+                AddDrawings(dwgFiles, replaceExisting: false);
+                statusLabelHelp.Text = $"Added {dwgFiles.Length} drawing(s) from drag-and-drop.";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error adding dropped files: {ex.Message}", "Error",
+                                MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void btnLoad_Click(object sender, EventArgs e)
         {
-            txtLspFile.Text = string.Empty;
-            txtCommand.Text = string.Empty;
-            _selectedLispPath = string.Empty;
-
             using (OpenFileDialog openFileDialog = new OpenFileDialog())
             {
                 openFileDialog.Filter = "LISP Files (*.lsp)|*.lsp|All Files (*.*)|*.*";
@@ -64,13 +182,22 @@ namespace AutoCADLispTool
                 openFileDialog.CheckPathExists = true;
                 openFileDialog.Multiselect = false;
 
+                if (!string.IsNullOrEmpty(_selectedLispPath))
+                {
+                    string currentDirectory = Path.GetDirectoryName(_selectedLispPath);
+                    if (!string.IsNullOrEmpty(currentDirectory) && Directory.Exists(currentDirectory))
+                    {
+                        openFileDialog.InitialDirectory = currentDirectory;
+                        openFileDialog.FileName = Path.GetFileName(_selectedLispPath);
+                    }
+                }
+
                 if (openFileDialog.ShowDialog() == DialogResult.OK)
                 {
                     try
                     {
-                        _selectedLispPath = openFileDialog.FileName;
-                        txtLspFile.Text = Path.GetFileName(_selectedLispPath);
-                        _toolTip.SetToolTip(txtLspFile, _selectedLispPath);
+                        SelectLispFile(openFileDialog.FileName);
+                        statusLabelHelp.Text = "LISP file selected. Select drawings to start.";
                     }
                     catch (Exception ex)
                     {
@@ -160,12 +287,14 @@ namespace AutoCADLispTool
                     var item = new ListViewItem(result.DrawingName);
                     item.SubItems.Add(result.ResultStatus);
                     item.SubItems.Add(result.ResultMessage);
+                    item.ToolTipText = path;
                     lstDwgList.Items.Add(item);
                 }
             }
             finally
             {
                 lstDwgList.EndUpdate();
+                UpdateDrawingCountStatus();
             }
         }
 
@@ -178,6 +307,7 @@ namespace AutoCADLispTool
         {
             lstDwgList.Items.Clear();
             _results.Clear();
+            UpdateDrawingCountStatus();
         }
 
         public void RemoveSelectedDrawing()
@@ -190,6 +320,21 @@ namespace AutoCADLispTool
             int selectedIndex = lstDwgList.SelectedIndices[0];
             lstDwgList.Items.RemoveAt(selectedIndex);
             _results.RemoveAt(selectedIndex);
+            UpdateDrawingCountStatus();
+        }
+
+        private void UpdateDrawingCountStatus()
+        {
+            int count = _results.Count;
+            statusLabelCount.Text = $"{count} drawing{(count == 1 ? "" : "s")}";
+        }
+
+        private void UpdateStatusHelp(string message)
+        {
+            if (!string.IsNullOrEmpty(message))
+            {
+                statusLabelHelp.Text = message;
+            }
         }
 
         private async void btnProcess_Click(object sender, EventArgs e)
@@ -204,6 +349,7 @@ namespace AutoCADLispTool
 
             if (_results.Count == 0)
             {
+                UpdateStatusHelp("Please select drawing files first.");
                 MessageBox.Show("Please select drawing files first.", "No Drawings Selected",
                               MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -302,6 +448,7 @@ namespace AutoCADLispTool
                 _isProcessing = false;
                 SetControlsEnabled(true);
                 lblProgress.Text = "Complete";
+                UpdateStatusHelp("Processing complete.");
             }
         }
 

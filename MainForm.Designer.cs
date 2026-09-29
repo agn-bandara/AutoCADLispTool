@@ -6,6 +6,7 @@
         /// Required designer variable.
         /// </summary>
         private System.ComponentModel.IContainer components = null;
+        private System.Windows.Forms.ContextMenuStrip _listContextMenu;
 
         /// <summary>
         /// Clean up any resources being used.
@@ -43,27 +44,37 @@
             this.btnClear = new System.Windows.Forms.Button();
             this.prgDrawingProgress = new System.Windows.Forms.ProgressBar();
             this.lblProgress = new System.Windows.Forms.Label();
+            this.statusStrip = new System.Windows.Forms.StatusStrip();
+            this.statusLabelHelp = new System.Windows.Forms.ToolStripStatusLabel();
+            this.statusLabelCount = new System.Windows.Forms.ToolStripStatusLabel();
+            this.statusStrip.SuspendLayout();
             this.SuspendLayout();
             // 
             // txtLspFile
             // 
+            this.txtLspFile.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
+            | System.Windows.Forms.AnchorStyles.Right)));
             this.txtLspFile.Location = new System.Drawing.Point(13, 13);
             this.txtLspFile.Name = "txtLspFile";
+            this.txtLspFile.ReadOnly = true;
             this.txtLspFile.Size = new System.Drawing.Size(327, 20);
             this.txtLspFile.TabIndex = 0;
             // 
             // btnLoad
             // 
+            this.btnLoad.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.btnLoad.Location = new System.Drawing.Point(265, 35);
             this.btnLoad.Name = "btnLoad";
             this.btnLoad.Size = new System.Drawing.Size(75, 23);
             this.btnLoad.TabIndex = 1;
-            this.btnLoad.Text = "Load File";
+            this.btnLoad.Text = "Browse...";
             this.btnLoad.UseVisualStyleBackColor = true;
             this.btnLoad.Click += new System.EventHandler(this.btnLoad_Click);
             // 
             // txtCommand
             // 
+            this.txtCommand.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
+            | System.Windows.Forms.AnchorStyles.Right)));
             this.txtCommand.Location = new System.Drawing.Point(78, 64);
             this.txtCommand.Name = "txtCommand";
             this.txtCommand.Size = new System.Drawing.Size(262, 20);
@@ -80,6 +91,10 @@
             // 
             // lstDwgList
             // 
+            this.lstDwgList.AllowDrop = true;
+            this.lstDwgList.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
+            | System.Windows.Forms.AnchorStyles.Right)));
             this.lstDwgList.FullRowSelect = true;
             this.lstDwgList.GridLines = true;
             this.lstDwgList.HideSelection = false;
@@ -92,6 +107,7 @@
             // 
             // btnProcess
             // 
+            this.btnProcess.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
             this.btnProcess.Location = new System.Drawing.Point(266, 353);
             this.btnProcess.Name = "btnProcess";
             this.btnProcess.Size = new System.Drawing.Size(75, 52);
@@ -102,6 +118,7 @@
             // 
             // btnDwgs
             // 
+            this.btnDwgs.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
             this.btnDwgs.Location = new System.Drawing.Point(165, 353);
             this.btnDwgs.Name = "btnDwgs";
             this.btnDwgs.Size = new System.Drawing.Size(95, 23);
@@ -112,18 +129,20 @@
             // 
             // chkClose
             // 
+            this.chkClose.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.chkClose.AutoSize = true;
             this.chkClose.Checked = true;
             this.chkClose.CheckState = System.Windows.Forms.CheckState.Checked;
             this.chkClose.Location = new System.Drawing.Point(14, 359);
             this.chkClose.Name = "chkClose";
-            this.chkClose.Size = new System.Drawing.Size(117, 17);
+            this.chkClose.Size = new System.Drawing.Size(145, 17);
             this.chkClose.TabIndex = 7;
-            this.chkClose.Text = "Close after Process";
+            this.chkClose.Text = "Close drawing after finish";
             this.chkClose.UseVisualStyleBackColor = true;
             // 
             // btnAppend
             // 
+            this.btnAppend.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
             this.btnAppend.Location = new System.Drawing.Point(165, 382);
             this.btnAppend.Name = "btnAppend";
             this.btnAppend.Size = new System.Drawing.Size(95, 23);
@@ -134,6 +153,7 @@
             // 
             // btnClear
             // 
+            this.btnClear.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.btnClear.Location = new System.Drawing.Point(14, 382);
             this.btnClear.Name = "btnClear";
             this.btnClear.Size = new System.Drawing.Size(75, 23);
@@ -144,6 +164,8 @@
             // 
             // prgDrawingProgress
             // 
+            this.prgDrawingProgress.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)
+            | System.Windows.Forms.AnchorStyles.Right)));
             this.prgDrawingProgress.Location = new System.Drawing.Point(12, 321);
             this.prgDrawingProgress.Name = "prgDrawingProgress";
             this.prgDrawingProgress.Size = new System.Drawing.Size(254, 23);
@@ -151,6 +173,7 @@
             // 
             // lblProgress
             // 
+            this.lblProgress.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
             this.lblProgress.AutoSize = true;
             this.lblProgress.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;
             this.lblProgress.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
@@ -160,11 +183,39 @@
             this.lblProgress.TabIndex = 11;
             this.lblProgress.Text = "0%";
             // 
-            // MainFom
+            // statusStrip
+            // 
+            this.statusStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.statusLabelHelp,
+            this.statusLabelCount});
+            this.statusStrip.Location = new System.Drawing.Point(0, 418);
+            this.statusStrip.Name = "statusStrip";
+            this.statusStrip.Size = new System.Drawing.Size(352, 22);
+            this.statusStrip.SizingGrip = false;
+            this.statusStrip.TabIndex = 12;
+            this.statusStrip.Text = "statusStrip";
+            // 
+            // statusLabelHelp
+            // 
+            this.statusLabelHelp.Name = "statusLabelHelp";
+            this.statusLabelHelp.Size = new System.Drawing.Size(259, 17);
+            this.statusLabelHelp.Spring = true;
+            this.statusLabelHelp.Text = "Select a LISP file and drawings to start.";
+            this.statusLabelHelp.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            // 
+            // statusLabelCount
+            // 
+            this.statusLabelCount.Name = "statusLabelCount";
+            this.statusLabelCount.Size = new System.Drawing.Size(77, 17);
+            this.statusLabelCount.Text = "0 drawings";
+            this.statusLabelCount.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
+            // 
+            // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(352, 417);
+            this.ClientSize = new System.Drawing.Size(352, 440);
+            this.Controls.Add(this.statusStrip);
             this.Controls.Add(this.lblProgress);
             this.Controls.Add(this.prgDrawingProgress);
             this.Controls.Add(this.btnClear);
@@ -178,8 +229,12 @@
             this.Controls.Add(this.btnLoad);
             this.Controls.Add(this.txtLspFile);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
-            this.Name = "MainFom";
+            this.MaximizeBox = false;
+            this.Name = "MainForm";
+            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "Run Lisp";
+            this.statusStrip.ResumeLayout(false);
+            this.statusStrip.PerformLayout();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -199,5 +254,8 @@
         private System.Windows.Forms.Button btnClear;
         private System.Windows.Forms.ProgressBar prgDrawingProgress;
         private System.Windows.Forms.Label lblProgress;
+        private System.Windows.Forms.StatusStrip statusStrip;
+        private System.Windows.Forms.ToolStripStatusLabel statusLabelHelp;
+        private System.Windows.Forms.ToolStripStatusLabel statusLabelCount;
     }
 }

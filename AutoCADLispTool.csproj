@@ -127,6 +127,9 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
+    <None Include="3DCheck_V02.lsp">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include=".github\upgrades\scenarios\dotnet-version-upgrade\scenario-instructions.md" />
     <None Include=".github\upgrades\scenarios\dotnet-version-upgrade\upgrade-options.md" />
     <None Include="AutoCADLispTool\README.md" />

@@ -813,3 +813,151 @@
     result
 )
 
+;;; ---------- Modular marks -------------------------------------------------------------------------------------------
+;; Some 3D files contain modular marks made of lines and a hatch. On export those
+;; entities are detected as vectors and drawn over the rendered image. Move them
+;; onto their own layer so that layer can be turned off before export.
+
+(defun _modular-mark-object-p (obj / name)
+    (and
+        obj
+        (setq name (vl-catch-all-apply 'vla-get-objectname (list obj)))
+        (not (vl-catch-all-error-p name))
+        (member name '("AcDbLine" "AcDbHatch" "AcDbPolyline" "AcDb2dPolyline"))
+    )
+)
+
+(defun _ensure-modular-layer (layer-name / doc layers layer)
+    "Create the modular-mark layer if needed. Leave it on so the user can toggle it."
+    (setq doc (vla-get-activedocument (vlax-get-acad-object))
+          layers (vla-get-layers doc)
+          layer (vl-catch-all-apply 'vla-item (list layers layer-name)))
+    (if (vl-catch-all-error-p layer)
+        (progn
+            (setq layer (vla-add layers layer-name))
+            (vla-put-color layer 6)
+        )
+    )
+    (vl-catch-all-apply 'vla-put-lock (list layer :vlax-false))
+    layer-name
+)
+
+(defun _set-color-bylayer (obj)
+    (vl-catch-all-apply 'vla-put-color (list obj acByLayer))
+)
+
+(defun _move-object-to-layer (obj layer-name / current moved)
+    "Move to the layer and set color to ByLayer. Returns 'moved, 'already, or nil."
+    (setq current (vl-catch-all-apply 'vla-get-layer (list obj)))
+    (cond
+        ((vl-catch-all-error-p current) nil)
+        ((= (strcase current) (strcase layer-name))
+            (_set-color-bylayer obj)
+            'already
+        )
+        (T
+            (setq moved (vl-catch-all-apply 'vla-put-layer (list obj layer-name)))
+            (if (vl-catch-all-error-p moved)
+                nil
+                (progn
+                    (_set-color-bylayer obj)
+                    'moved
+                )
+            )
+        )
+    )
+)
+
+(defun _move-modular-marks-in-collection (collection layer-name / obj status moved already failed)
+    (setq moved 0
+          already 0
+          failed 0)
+    (if collection
+        (vlax-for obj collection
+            (if (_modular-mark-object-p obj)
+                (progn
+                    (setq status (_move-object-to-layer obj layer-name))
+                    (cond
+                        ((eq status 'moved) (setq moved (1+ moved)))
+                        ((eq status 'already) (setq already (1+ already)))
+                        (T (setq failed (1+ failed)))
+                    )
+                )
+            )
+        )
+    )
+    (list moved already failed)
+)
+
+(defun _move-modular-marks-in-blocks (layer-name / doc blocks blk counts moved already failed)
+    (setq doc (vla-get-activedocument (vlax-get-acad-object))
+          blocks (vla-get-blocks doc)
+          moved 0
+          already 0
+          failed 0)
+    (vlax-for blk blocks
+        (if (and (= (vla-get-isxref blk) :vlax-false)
+                 (= (vla-get-islayout blk) :vlax-false))
+            (progn
+                (setq counts (_move-modular-marks-in-collection blk layer-name)
+                      moved (+ moved (nth 0 counts))
+                      already (+ already (nth 1 counts))
+                      failed (+ failed (nth 2 counts)))
+            )
+        )
+    )
+    (list moved already failed)
+)
+
+;; Move modular marks (lines, polylines, and hatches) to a separate layer.
+;; Example: (c:moveModularMarks) or (c:moveModularMarks "ModularMarks")
+(defun c:moveModularMarks (layer-name / doc space-counts block-counts moved already failed result)
+    "Move lines and hatches that form modular marks onto their own layer."
+    "Example: (c:moveModularMarks) or (c:moveModularMarks \"ModularMarks\")"
+    (cond
+        ((null layer-name) (setq layer-name "ModularMarks"))
+        ((= (type layer-name) 'STR)
+            (if (= (vl-string-trim " " layer-name) "")
+                (setq layer-name "ModularMarks")
+            )
+        )
+        (T (setq layer-name (vl-princ-to-string layer-name)))
+    )
+
+    (princ (strcat "\nMoving modular marks (lines and hatches) to layer " layer-name))
+    (_ensure-modular-layer layer-name)
+
+    (setq doc (vla-get-activedocument (vlax-get-acad-object))
+          space-counts (_move-modular-marks-in-collection (vla-get-modelspace doc) layer-name)
+          block-counts (_move-modular-marks-in-blocks layer-name)
+          moved (+ (nth 0 space-counts) (nth 0 block-counts))
+          already (+ (nth 1 space-counts) (nth 1 block-counts))
+          failed (+ (nth 2 space-counts) (nth 2 block-counts)))
+
+    (princ "\n--- RESULTS ---")
+    (princ (strcat "\nLayer: " layer-name " (color 6 when created)"))
+    (princ "\nEntity color: ByLayer")
+    (princ (strcat "\nModel space moved: " (itoa (nth 0 space-counts))))
+    (princ (strcat "\nBlock entities moved: " (itoa (nth 0 block-counts))))
+    (princ (strcat "\nAlready on layer: " (itoa already)))
+    (if (> failed 0)
+        (princ (strcat "\nCould not move: " (itoa failed)))
+    )
+    (cond
+        ((> moved 0)
+            (princ (strcat "\nTurn layer " layer-name " off before export to keep the marks out of the image."))
+        )
+        ((> already 0)
+            (princ (strcat "\nModular marks are already on layer " layer-name "."))
+        )
+        (T
+            (princ "\nNo modular marks found (no lines, polylines, or hatches).")
+        )
+    )
+
+    (setq result (strcat "MOVED " (itoa moved)))
+    (princ (strcat "\n" result))
+    (princ)
+    result
+)
+
