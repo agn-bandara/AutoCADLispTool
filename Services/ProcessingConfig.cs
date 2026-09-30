@@ -13,6 +13,18 @@ namespace AutoCADLispTool.Services
         public int LispLoadDelayMs { get; set; } = 150;
         public int CommandExecutionDelayMs { get; set; } = 150;
         public int SaveDelayMs { get; set; } = 300;
+        public int LispResultTimeoutMs { get; set; } = 120000;
+        public int SaveTimeoutMs { get; set; } = 60000;
+
+        public int EffectiveLispResultTimeoutMs
+        {
+            get { return LispResultTimeoutMs > 0 ? LispResultTimeoutMs : 120000; }
+        }
+
+        public int EffectiveSaveTimeoutMs
+        {
+            get { return SaveTimeoutMs > 0 ? SaveTimeoutMs : 60000; }
+        }
 
         public ProcessingConfig()
         {

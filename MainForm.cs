@@ -546,8 +546,11 @@ namespace AutoCADLispTool
 
             _isProcessing = true;
             SetControlsEnabled(false);
-            // Keep the form modeless so LISP can run, but ignore clicks in the drawing.
-            SetAutoCadInputEnabled(false);
+            // This form is owned by the AutoCAD main window. Disabling that window
+            // also disables Cancel and any prompt, so the drawing stays interactive.
+
+            int timeoutSeconds = Math.Max(1, _config.EffectiveLispResultTimeoutMs / 1000);
+            UpdateStatusHelp($"Processing. Cancel stays available. A command still running after {timeoutSeconds} seconds is stopped.");
 
             prgDrawingProgress.Minimum = 0;
             prgDrawingProgress.Maximum = _results.Count;
@@ -558,6 +561,7 @@ namespace AutoCADLispTool
             CancellationToken token = _cancellationTokenSource.Token;
 
             var processor = new DrawingProcessor(_config, _logger);
+            var progress = new Progress<string>(UpdateStatusHelp);
             var batch = _results.ToList();
             int processedCount = 0;
             foreach (DrawingResult pending in batch)
@@ -570,30 +574,33 @@ namespace AutoCADLispTool
 
             try
             {
-                for (int i = 0; i < batch.Count; i++)
+                using (new BatchEnvironment(job.LispFilePath, _logger))
                 {
-                    token.ThrowIfCancellationRequested();
-
-                    DrawingResult result = batch[i];
-                    UpdateProgress(i + 1, batch.Count, result.DrawingName);
-
-                    try
+                    for (int i = 0; i < batch.Count; i++)
                     {
-                        await processor.ProcessAsync(result, job, token);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        throw;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.Log($"Unexpected error for {result.DrawingName}: {ex}");
-                        result.SetOutcome($"ERROR {ex.Message}", true);
-                    }
+                        token.ThrowIfCancellationRequested();
 
-                    processedCount++;
-                    UpdateListViewItem(result);
-                    UpdateRunMetrics(batch);
+                        DrawingResult result = batch[i];
+                        UpdateProgress(i + 1, batch.Count, result.DrawingName);
+
+                        try
+                        {
+                            await processor.ProcessAsync(result, job, progress, token);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            throw;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.Log($"Unexpected error for {result.DrawingName}: {ex}");
+                            result.SetOutcome($"ERROR {ex.Message}", true);
+                        }
+
+                        processedCount++;
+                        UpdateListViewItem(result);
+                        UpdateRunMetrics(batch);
+                    }
                 }
             }
             catch (OperationCanceledException)
@@ -695,12 +702,19 @@ namespace AutoCADLispTool
 
         private static void SetAutoCadInputEnabled(bool enabled)
         {
+            if (!enabled)
+            {
+                // Never disable the AutoCAD main window. This form is an owned
+                // window, so that call also disables Cancel and every prompt.
+                return;
+            }
+
             try
             {
                 IntPtr mainWindow = AcadApp.MainWindow.Handle;
                 if (mainWindow != IntPtr.Zero)
                 {
-                    EnableWindow(mainWindow, enabled);
+                    EnableWindow(mainWindow, true);
                 }
             }
             catch (Exception)
