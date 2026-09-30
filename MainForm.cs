@@ -546,11 +546,12 @@ namespace AutoCADLispTool
 
             _isProcessing = true;
             SetControlsEnabled(false);
-            // This form is owned by the AutoCAD main window. Disabling that window
-            // also disables Cancel and any prompt, so the drawing stays interactive.
+            // Lock the AutoCAD frame so drawing clicks cannot interrupt a long run,
+            // then turn this owned window back on so Cancel still works.
+            SetAutoCadInputEnabled(false);
 
             int timeoutSeconds = Math.Max(1, _config.EffectiveLispResultTimeoutMs / 1000);
-            UpdateStatusHelp($"Processing. Cancel stays available. A command still running after {timeoutSeconds} seconds is stopped.");
+            UpdateStatusHelp($"Processing. The drawing window is locked. Cancel stays available. A command still running after {timeoutSeconds} seconds is stopped.");
 
             prgDrawingProgress.Minimum = 0;
             prgDrawingProgress.Maximum = _results.Count;
@@ -561,7 +562,14 @@ namespace AutoCADLispTool
             CancellationToken token = _cancellationTokenSource.Token;
 
             var processor = new DrawingProcessor(_config, _logger);
-            var progress = new Progress<string>(UpdateStatusHelp);
+            var progress = new Progress<string>(message =>
+            {
+                UpdateStatusHelp(message);
+                if (_isProcessing)
+                {
+                    SetAutoCadInputEnabled(false);
+                }
+            });
             var batch = _results.ToList();
             int processedCount = 0;
             foreach (DrawingResult pending in batch)
@@ -582,6 +590,7 @@ namespace AutoCADLispTool
 
                         DrawingResult result = batch[i];
                         UpdateProgress(i + 1, batch.Count, result.DrawingName);
+                        SetAutoCadInputEnabled(false);
 
                         try
                         {
@@ -700,21 +709,21 @@ namespace AutoCADLispTool
             }
         }
 
-        private static void SetAutoCadInputEnabled(bool enabled)
+        private void SetAutoCadInputEnabled(bool enabled)
         {
-            if (!enabled)
-            {
-                // Never disable the AutoCAD main window. This form is an owned
-                // window, so that call also disables Cancel and every prompt.
-                return;
-            }
-
             try
             {
                 IntPtr mainWindow = AcadApp.MainWindow.Handle;
                 if (mainWindow != IntPtr.Zero)
                 {
-                    EnableWindow(mainWindow, true);
+                    EnableWindow(mainWindow, enabled);
+                }
+
+                // Disabling the owner also disables this window. Turn the tool
+                // window back on so Cancel can be clicked during a long batch.
+                if (!enabled && IsHandleCreated)
+                {
+                    EnableWindow(Handle, true);
                 }
             }
             catch (Exception)

@@ -31,6 +31,13 @@ namespace AutoCADLispTool
         // NOTE: CommandMethod has overloads where you can provide helpid and
         // context menu.
 
+        // Run once in a newly opened drawing so this application is attached to
+        // that document. Without it, AutoCAD waits until the user loads the app.
+        [CommandMethod("LispToolDocInit", CommandFlags.NoHistory)]
+        public void LispToolDocInit()
+        {
+        }
+
         // Command to show MainForm in non-modal mode
         [CommandMethod("MyGroup", "OpenLispTool", "OpenLispToolLocal", CommandFlags.Modal)]
         public void OpenLispTool()

@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -70,6 +71,12 @@ namespace AutoCADLispTool.Services
                     return;
                 }
 
+                if (!await EnsureHostLoadedAsync(document, progress, token))
+                {
+                    Fail(result, "ERROR Application was not loaded in this drawing");
+                    return;
+                }
+
                 string output = "Document opened successfully";
                 bool hasError = false;
 
@@ -128,6 +135,50 @@ namespace AutoCADLispTool.Services
             AcadApp.DocumentManager.MdiActiveDocument = document;
             await Task.Delay(_config.DocumentActivationDelayMs, token);
             return ReferenceEquals(AcadApp.DocumentManager.MdiActiveDocument, document);
+        }
+
+        private const int HostLoadTimeoutMs = 15000;
+
+        /// <summary>
+        /// AutoCAD will not run the queued LISP until this application has been
+        /// loaded into the newly opened drawing. Do that here instead of waiting
+        /// for a manual APPLOAD.
+        /// </summary>
+        private async Task<bool> EnsureHostLoadedAsync(Document document, IProgress<string> progress, CancellationToken token)
+        {
+            string location = Assembly.GetExecutingAssembly().Location;
+            if (string.IsNullOrWhiteSpace(location))
+            {
+                return true;
+            }
+
+            try
+            {
+                document.Window.Focus();
+            }
+            catch (Exception ex)
+            {
+                _logger.Log($"Could not focus the drawing window: {ex.Message}");
+            }
+
+            string path = location.Replace('\\', '/');
+            _logger.Log($"Loading application into {document.Name}");
+            document.SendStringToExecute("_.NETLOAD \"" + path + "\"\n", true, false, false);
+            document.SendStringToExecute("LispToolDocInit\n", true, false, false);
+            await Task.Delay(Math.Max(50, _config.CommandExecutionDelayMs), token);
+
+            bool idle = await WaitUntilIdleAsync(
+                document,
+                HostLoadTimeoutMs,
+                "Loading the application into this drawing",
+                progress,
+                token);
+            if (!idle)
+            {
+                _logger.Log($"Application load timed out for {document.Name}.");
+            }
+
+            return idle;
         }
 
         private async Task<CommandOutcome> ExecuteCommandAsync(Document document, LispJob job, string drawingName, IProgress<string> progress, CancellationToken token)
@@ -451,6 +502,9 @@ namespace AutoCADLispTool.Services
             [DllImport("user32.dll")]
             private static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
+            [DllImport("user32.dll")]
+            private static extern bool EnableWindow(IntPtr hWnd, bool bEnable);
+
             public EscapeWatchdog(IntPtr window, int timeoutMs)
             {
                 _window = window;
@@ -475,6 +529,9 @@ namespace AutoCADLispTool.Services
                     return;
                 }
 
+                // The drawing frame is disabled during a batch, so turn it on
+                // before Esc or the key is discarded.
+                EnableWindow(_window, true);
                 PostMessage(_window, WmKeyDown, (IntPtr)VkEscape, IntPtr.Zero);
                 PostMessage(_window, WmKeyUp, (IntPtr)VkEscape, IntPtr.Zero);
                 PostMessage(_window, WmKeyDown, (IntPtr)VkEscape, IntPtr.Zero);
@@ -510,7 +567,10 @@ namespace AutoCADLispTool.Services
             SetNumeric("EXPERT", 5);
             SetNumeric("ATTDIA", 0);
             SetNumeric("PROXYNOTICE", 0);
-            TrustLispFolder(lispFilePath);
+            SetNumeric("SECURELOAD", 0);
+            TrustFolders(
+                Path.GetDirectoryName(lispFilePath),
+                Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
         }
 
         public void Dispose()
@@ -543,40 +603,47 @@ namespace AutoCADLispTool.Services
             }
         }
 
-        private void TrustLispFolder(string lispFilePath)
+        private void TrustFolders(params string[] folders)
         {
-            if (string.IsNullOrWhiteSpace(lispFilePath))
-            {
-                return;
-            }
-
-            string folder = Path.GetDirectoryName(lispFilePath);
-            if (string.IsNullOrWhiteSpace(folder))
-            {
-                return;
-            }
-
             try
             {
                 string trusted = Convert.ToString(AcadApp.GetSystemVariable("TRUSTEDPATHS")) ?? string.Empty;
                 _saved.Add(new KeyValuePair<string, object>("TRUSTEDPATHS", trusted));
 
-                string[] parts = trusted.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-                foreach (string part in parts)
+                string updated = trusted;
+                foreach (string folder in folders)
                 {
-                    if (string.Equals(part.TrimEnd('\\'), folder.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+                    if (string.IsNullOrWhiteSpace(folder) || ContainsPath(updated, folder))
                     {
-                        return;
+                        continue;
                     }
+
+                    updated = string.IsNullOrWhiteSpace(updated) ? folder : updated + ";" + folder;
                 }
 
-                string updated = string.IsNullOrWhiteSpace(trusted) ? folder : trusted + ";" + folder;
-                AcadApp.SetSystemVariable("TRUSTEDPATHS", updated);
+                if (!string.Equals(updated, trusted, StringComparison.OrdinalIgnoreCase))
+                {
+                    AcadApp.SetSystemVariable("TRUSTEDPATHS", updated);
+                }
             }
             catch (Exception ex)
             {
-                _logger?.Log($"Could not trust the LISP folder: {ex.Message}");
+                _logger?.Log($"Could not trust the application folders: {ex.Message}");
             }
+        }
+
+        private static bool ContainsPath(string trustedList, string folder)
+        {
+            string[] parts = trustedList.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (string part in parts)
+            {
+                if (string.Equals(part.Trim().TrimEnd('\\'), folder.Trim().TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }
